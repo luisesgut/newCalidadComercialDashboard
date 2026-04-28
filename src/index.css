@@ -18,6 +18,20 @@ body {
 @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
 .dot-live { width: 7px; height: 7px; border-radius: 50%; background: #107C10; display: inline-block; animation: pulse 2s infinite; }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-spinner {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 3px solid #EDEBE9; border-top-color: #0078D4;
+  animation: spin 0.8s linear infinite;
+}
+.skeleton-line {
+  height: 10px; border-radius: 4px;
+  background: linear-gradient(90deg, #F3F2F1 25%, #EDEBE9 37%, #F3F2F1 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.2s ease infinite;
+}
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
 /* Sidebar */
 .sidebar { transition: width 0.25s ease; overflow: hidden; flex-shrink: 0; }
 .sidebar.expanded { width: 220px; }

@@ -8,9 +8,8 @@ const PAGE_TITLES = {
   configuracion:  { title: 'Configuración', sub: 'Preferencias del sistema' },
 };
 
-export default function Header({ activePage, period, onPeriod, cliente, onCliente, accent }) {
-  const PERIODS  = ['Hoy', 'Semana', 'Mes', 'Trimestre'];
-  const CLIENTES = ['Todos', 'Destiny', 'Quality', 'Mr Lucky'];
+export default function Header({ activePage, period, onPeriod, accent }) {
+  const PERIODS  = ['Hoy', 'Semana', 'Mes'];
   const { title, sub } = PAGE_TITLES[activePage] || PAGE_TITLES.dashboard;
 
   return (
@@ -30,25 +29,19 @@ export default function Header({ activePage, period, onPeriod, cliente, onClient
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11, color: '#A19F9D', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Cliente:</span>
-        {CLIENTES.map(c => (
-          <button
-            key={c}
-            className={`filter-btn ${cliente === c ? 'active' : ''}`}
-            style={{ background: cliente === c ? accent : undefined, borderColor: cliente === c ? accent : undefined }}
-            onClick={() => onCliente(c)}
-          >{c}</button>
-        ))}
-        <div style={{ width: 1, height: 20, background: '#EDEBE9', margin: '0 4px' }} />
-        <span style={{ fontSize: 11, color: '#A19F9D', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Periodo:</span>
-        {PERIODS.map(p => (
-          <button
-            key={p}
-            className={`filter-btn ${period === p ? 'active' : ''}`}
-            style={{ background: period === p ? accent : undefined, borderColor: period === p ? accent : undefined }}
-            onClick={() => onPeriod(p)}
-          >{p}</button>
-        ))}
+        {activePage === 'dashboard' && (
+          <>
+            <span style={{ fontSize: 11, color: '#A19F9D', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Periodo:</span>
+            {PERIODS.map(p => (
+              <button
+                key={p}
+                className={`filter-btn ${period === p ? 'active' : ''}`}
+                style={{ background: period === p ? accent : undefined, borderColor: period === p ? accent : undefined }}
+                onClick={() => onPeriod(p)}
+              >{p}</button>
+            ))}
+          </>
+        )}
         <button className="filter-btn" title="Actualizar" style={{ padding: '5px 8px' }}>
           <RefreshCw size={13} />
         </button>

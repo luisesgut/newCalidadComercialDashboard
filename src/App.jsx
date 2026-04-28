@@ -8,16 +8,38 @@ import Hallazgos     from './pages/Hallazgos';
 import Reportes      from './pages/Reportes';
 import Configuracion from './pages/Configuracion';
 
+const fmtDate = (date) => date.toISOString().slice(0, 10);
+
+function getPeriodRange(period) {
+  const today = new Date();
+  const end = fmtDate(today);
+
+  if (period === 'Hoy') {
+    return { desde: end, hasta: end };
+  }
+
+  if (period === 'Semana') {
+    const start = new Date(today);
+    const day = start.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    start.setDate(start.getDate() - diff);
+    return { desde: fmtDate(start), hasta: end };
+  }
+
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  return { desde: fmtDate(start), hasta: end };
+}
+
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activePage,       setActivePage]       = useState('dashboard');
   const [period,           setPeriod]           = useState('Mes');
-  const [cliente,          setCliente]          = useState('Todos');
   const [accent,           setAccent]           = useState('#0078D4');
   const [sidebarColor,     setSidebarColor]     = useState('#252423');
+  const range = getPeriodRange(period);
 
   const PAGE = {
-    dashboard:      <Dashboard      accent={accent} />,
+    dashboard:      <Dashboard      key={`dashboard-${period}`} accent={accent} initialDesde={range.desde} initialHasta={range.hasta} />,
     verificaciones: <Verificaciones accent={accent} />,
     hallazgos:      <Hallazgos      accent={accent} />,
     reportes:       <Reportes       accent={accent} />,
@@ -44,15 +66,12 @@ export default function App() {
           <div style={{ width: 8, height: 8, borderRadius: 2, background: accent }} />
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.3 }}>Calidad Comercial</span>
           <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.4)' }}>Última actualización: Hoy 09:14 AM</span>
         </div>
 
         <Header
           activePage={activePage}
           period={period}
           onPeriod={setPeriod}
-          cliente={cliente}
-          onCliente={setCliente}
           accent={accent}
         />
 

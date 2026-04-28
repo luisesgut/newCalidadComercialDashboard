@@ -1,196 +1,295 @@
-import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
-} from 'recharts';
-import { Download, TrendingUp, Users, Package, AlertTriangle } from 'lucide-react';
-import CustomTooltip from '../components/CustomTooltip';
-import { reportesData } from '../data/mockData';
+import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
+import { AlertTriangle, Download, FileSpreadsheet, Info, RefreshCw, X } from 'lucide-react';
 
-const SEV_COLOR = { 'CRÍTICO': '#A80000', 'MAYOR': '#F2C812', 'MENOR': '#0078D4' };
+const BASE_URL = 'http://172.16.10.31/api/Verificacion/exportar-excel';
+const today = new Date().toISOString().slice(0, 10);
+const defaultDesde = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 
-export default function Reportes({ accent }) {
-  const { resumenMensual, porCliente, inspectores } = reportesData;
+function buildExcelUrl(desde, hasta) {
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  const query = params.toString();
+  return `${BASE_URL}${query ? '?' + query : ''}`;
+}
+
+function parseExcelPreview(buffer) {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false });
+  const headers = rows[2] || [];
+  const body = rows
+    .slice(3)
+    .filter((row) => row.some((cell) => String(cell).trim() !== ''));
+
+  return {
+    title: rows[0]?.[0] || 'Reporte de verificaciones',
+    period: rows[1]?.[0] || '',
+    headers,
+    rows: body,
+  };
+}
+
+export default function Reportes({ accent, initialDesde = defaultDesde, initialHasta = today }) {
+  const [desde, setDesde] = useState(initialDesde);
+  const [hasta, setHasta] = useState(initialHasta);
+  const [preview, setPreview] = useState({ title: '', period: '', headers: [], rows: [] });
+  const [loadingPreview, setLoadingPreview] = useState(true);
+  const [previewError, setPreviewError] = useState('');
+  const [showIntro, setShowIntro] = useState(true);
+
+  const descargarExcel = () => {
+    window.open(buildExcelUrl(desde, hasta), '_blank');
+  };
+
+  const limpiarRango = () => {
+    setLoadingPreview(true);
+    setPreviewError('');
+    setDesde('');
+    setHasta('');
+  };
+
+  const cargarPreview = async () => {
+    setLoadingPreview(true);
+    setPreviewError('');
+    try {
+      const response = await fetch(buildExcelUrl(desde, hasta));
+      if (!response.ok) throw new Error(`No se pudo cargar el Excel (${response.status})`);
+
+      setPreview(parseExcelPreview(await response.arrayBuffer()));
+    } catch (error) {
+      setPreview({ title: '', period: '', headers: [], rows: [] });
+      setPreviewError(error.message);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetch(buildExcelUrl(desde, hasta))
+      .then((response) => {
+        if (!response.ok) throw new Error(`No se pudo cargar el Excel (${response.status})`);
+        return response.arrayBuffer();
+      })
+      .then((buffer) => {
+        if (ignore) return;
+        setPreview(parseExcelPreview(buffer));
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setPreview({ title: '', period: '', headers: [], rows: [] });
+          setPreviewError(error.message);
+        }
+      })
+      .finally(() => {
+        if (!ignore) setLoadingPreview(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [desde, hasta]);
 
   return (
     <div className="main-scroll" style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-      {/* Section: Resumen mensual */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#252423' }}>Resumen del Período</div>
-          <div style={{ fontSize: 11, color: '#A19F9D' }}>Sep 2025 – Feb 2026</div>
-        </div>
-        <button style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '7px 14px', borderRadius: 4, border: '1px solid #EDEBE9',
-          background: '#fff', color: '#252423', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+      {showIntro && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.28)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
         }}>
-          <Download size={13} /> Exportar PDF
-        </button>
-      </div>
-
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-        {[
-          { label: 'Total tarimas',    value: resumenMensual.reduce((s,r)=>s+r.tarimas,0).toLocaleString(), icon: <Package size={16} color={accent} />,             accent },
-          { label: 'Total cajas',      value: resumenMensual.reduce((s,r)=>s+r.cajas,0).toLocaleString(),   icon: <Package size={16} color="#00B7C3" />,             accent: '#00B7C3' },
-          { label: 'Total hallazgos',  value: resumenMensual.reduce((s,r)=>s+r.hallazgos,0),                icon: <AlertTriangle size={16} color="#A80000" />,        accent: '#A80000' },
-          { label: 'Tasa aprobación',  value: `${(resumenMensual.reduce((s,r)=>s+r.aprobacion,0)/resumenMensual.length).toFixed(1)}%`,
-                                                                                                             icon: <TrendingUp size={16} color="#107C10" />,           accent: '#107C10', color: '#107C10' },
-        ].map(k => (
-          <div key={k.label} className="card" style={{ padding: '12px 14px', borderTop: `3px solid ${k.accent}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div className="kpi-label">{k.label}</div>
-                <div className="kpi-value" style={{ marginTop: 4, color: k.color || '#252423' }}>{k.value}</div>
+          <div className="card fade-in" style={{ width: 'min(520px, 100%)', padding: 18, boxShadow: '0 16px 40px rgba(0,0,0,.22)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 4, background: `${accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Info size={18} color={accent} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#252423' }}>Reportes de verificaciones</div>
+                  <div style={{ fontSize: 11, color: '#A19F9D', marginTop: 2 }}>Exportación para análisis operativo</div>
+                </div>
               </div>
-              <div style={{ width: 32, height: 32, borderRadius: 4, background: `${k.accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {k.icon}
+              <button onClick={() => setShowIntro(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A19F9D', padding: 4 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#605E5C', lineHeight: 1.6, display: 'grid', gap: 10 }}>
+              <p>Desde esta sección puedes descargar el Excel de verificaciones para usar los datos como necesites: filtrar, cruzar información, compartirlo o trabajarlo fuera del dashboard.</p>
+              <p>Si seleccionas un rango, la descarga se limita a esas fechas. Si dejas vacíos los campos Desde y Hasta, se descarga el histórico completo desde que inició el sistema.</p>
+            </div>
+
+            <div style={{ marginTop: 14, background: '#FFF4CE', border: '1px solid #F2C812', borderRadius: 4, padding: '10px 12px', display: 'flex', gap: 8 }}>
+              <AlertTriangle size={15} color="#7A4F01" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ fontSize: 11, color: '#7A4F01', lineHeight: 1.5 }}>
+                Se detectó un bug en los tiempos de verificaciones y ya quedó solucionado. Si encuentran alguna diferencia histórica en tiempos, avísenlo para revisarla.
               </div>
             </div>
-          </div>
-        ))}
-      </div>
 
-      {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 10 }}>
-
-        {/* Tendencia mensual */}
-        <div className="card" style={{ padding: '12px 14px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#252423', marginBottom: 2 }}>Evolución de Tarimas y Hallazgos</div>
-          <div style={{ fontSize: 10, color: '#A19F9D', marginBottom: 10 }}>Últimos 6 meses</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={resumenMensual} margin={{ top: 4, right: 8, left: -10, bottom: 0 }} barSize={18}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" vertical={false} />
-              <XAxis dataKey="mes" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar yAxisId="left"  dataKey="tarimas"   name="Tarimas"   fill={accent}   radius={[3,3,0,0]} />
-              <Bar yAxisId="left"  dataKey="cajas"     name="Cajas"     fill="#00B7C3"  radius={[3,3,0,0]} />
-              <Bar yAxisId="right" dataKey="hallazgos" name="Hallazgos" fill="#A80000"  radius={[3,3,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 4 }}>
-            {[['Tarimas', accent], ['Cajas', '#00B7C3'], ['Hallazgos', '#A80000']].map(([l, c]) => (
-              <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#605E5C' }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: c }} />{l}
-              </div>
-            ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button
+                onClick={() => setShowIntro(false)}
+                style={{
+                  padding: '7px 14px', borderRadius: 4, border: 'none',
+                  background: accent, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Entendido
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Tasa de aprobación */}
-        <div className="card" style={{ padding: '12px 14px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#252423', marginBottom: 2 }}>Tasa de Aprobación</div>
-          <div style={{ fontSize: 10, color: '#A19F9D', marginBottom: 10 }}>% mensual</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={resumenMensual} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" vertical={false} />
-              <XAxis dataKey="mes" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[96, 100]} tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Line dataKey="aprobacion" name="% Aprobación" stroke="#107C10" strokeWidth={2.5} dot={{ fill: '#107C10', r: 4 }} type="monotone" />
-            </LineChart>
-          </ResponsiveContainer>
+      <div className="card" style={{ padding: '18px 20px', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) auto', alignItems: 'center', gap: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 4, background: `${accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <FileSpreadsheet size={20} color={accent} />
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#252423' }}>Descarga de reportes</div>
+            <div style={{ fontSize: 11, color: '#A19F9D', marginTop: 2 }}>Selecciona un rango o deja las fechas vacías para exportar todo el histórico.</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#605E5C' }}>
+            Desde
+            <input
+              className="pbi-input"
+              type="date"
+              value={desde}
+              onChange={(e) => {
+                setLoadingPreview(true);
+                setPreviewError('');
+                setDesde(e.target.value);
+              }}
+              style={{ width: 136 }}
+            />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#605E5C' }}>
+            Hasta
+            <input
+              className="pbi-input"
+              type="date"
+              value={hasta}
+              onChange={(e) => {
+                setLoadingPreview(true);
+                setPreviewError('');
+                setHasta(e.target.value);
+              }}
+              style={{ width: 136 }}
+            />
+          </label>
+          <button
+            className="filter-btn"
+            onClick={limpiarRango}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Todo el histórico
+          </button>
+          <button
+            onClick={descargarExcel}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: 4, border: 'none',
+              background: accent, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+              <Download size={13} /> Descargar Excel
+          </button>
         </div>
       </div>
 
-      {/* By Client */}
-      <div className="card" style={{ padding: '12px 14px' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#252423', marginBottom: 10 }}>Desempeño por Cliente</div>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th style={{ textAlign: 'right' }}>Tarimas</th>
-                <th style={{ textAlign: 'right' }}>Cajas</th>
-                <th style={{ textAlign: 'right' }}>Hallazgos</th>
-                <th style={{ textAlign: 'right' }}>Tasa Aprobación</th>
-                <th>Tendencia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {porCliente.map(r => (
-                <tr key={r.cliente}>
-                  <td style={{ fontWeight: 600, fontSize: 12 }}>{r.cliente}</td>
-                  <td style={{ textAlign: 'right', fontSize: 12 }}>{r.tarimas.toLocaleString()}</td>
-                  <td style={{ textAlign: 'right', fontSize: 12 }}>{r.cajas.toLocaleString()}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <span className={`badge ${r.hallazgos > 20 ? 'badge-critical' : r.hallazgos > 10 ? 'badge-major' : 'badge-minor'}`}>
-                      {r.hallazgos}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                      <div style={{ width: 80, background: '#F3F2F1', borderRadius: 2, height: 6, overflow: 'hidden' }}>
-                        <div style={{ width: `${((r.aprobacion - 95) / 5) * 100}%`, background: r.aprobacion >= 99 ? '#107C10' : r.aprobacion >= 98 ? accent : '#F2C812', height: '100%', borderRadius: 2 }} />
-                      </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: r.aprobacion >= 99 ? '#107C10' : r.aprobacion >= 98 ? accent : '#F2C812', minWidth: 44 }}>
-                        {r.aprobacion}%
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="trend-up">▲ 0.3%</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div style={{ background: '#FFF4CE', border: '1px solid #F2C812', borderRadius: 4, padding: '10px 12px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <AlertTriangle size={15} color="#7A4F01" style={{ flexShrink: 0, marginTop: 1 }} />
+        <div style={{ fontSize: 11, color: '#7A4F01', lineHeight: 1.5 }}>
+          Aviso: se detectó un bug en los tiempos de verificaciones y ya quedó solucionado. Si encuentran alguna diferencia en tiempos históricos, repórtenla para revisarla.
         </div>
       </div>
 
-      {/* By Inspector */}
-      <div className="card" style={{ padding: '12px 14px' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#252423', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Users size={14} /> Desempeño por Inspector
+      <div className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#252423' }}>{preview.title || 'Preview del Excel'}</div>
+            <div style={{ fontSize: 10, color: '#A19F9D', marginTop: 2 }}>
+              {preview.period || (desde || hasta ? `${desde || 'Inicio'} a ${hasta || 'Hoy'}` : 'Todos los registros')}
+              {preview.rows.length > 0 && ` · ${preview.rows.length.toLocaleString('es-MX')} filas`}
+            </div>
+          </div>
+          <button
+            className="filter-btn"
+            onClick={cargarPreview}
+            disabled={loadingPreview}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <RefreshCw size={13} /> {loadingPreview ? 'Cargando' : 'Actualizar preview'}
+          </button>
         </div>
-        <div style={{ fontSize: 10, color: '#A19F9D', marginBottom: 10 }}>Período completo</div>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Inspector</th>
-                <th style={{ textAlign: 'right' }}>Verificaciones</th>
-                <th style={{ textAlign: 'right' }}>Hallazgos</th>
-                <th style={{ textAlign: 'right' }}>Prom. días verif.</th>
-                <th style={{ textAlign: 'right' }}>Tasa Aprobación</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inspectores.map(i => (
-                <tr key={i.nombre}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{
-                        width: 24, height: 24, borderRadius: '50%', background: accent,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9, fontWeight: 700, color: '#fff', flexShrink: 0,
-                      }}>
-                        {i.nombre.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>{i.nombre}</span>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', fontSize: 12 }}>{i.verificaciones}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <span className={`badge ${i.hallazgos > 12 ? 'badge-major' : 'badge-minor'}`}>{i.hallazgos}</span>
-                  </td>
-                  <td style={{ textAlign: 'right', fontSize: 12 }}>{i.promDias}d</td>
-                  <td style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: i.tasa >= 99 ? '#107C10' : accent }}>{i.tasa}%</td>
+
+        {previewError && (
+          <div style={{ background: '#FDE7E9', color: '#A80000', borderRadius: 4, padding: 8, fontSize: 11 }}>
+            {previewError}
+          </div>
+        )}
+
+        {!previewError && loadingPreview && (
+          <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#A19F9D', fontSize: 12 }}>
+            Cargando preview del Excel...
+          </div>
+        )}
+
+        {!previewError && !loadingPreview && preview.rows.length === 0 && (
+          <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#A19F9D', fontSize: 12 }}>
+            Sin datos para el rango seleccionado
+          </div>
+        )}
+
+        {!previewError && !loadingPreview && preview.rows.length > 0 && (
+          <div style={{ overflow: 'auto', maxHeight: 520, border: '1px solid #EDEBE9', borderRadius: 4 }}>
+            <table className="tbl" style={{ minWidth: 1500 }}>
+              <thead>
+                <tr>
+                  {preview.headers.map((header, index) => (
+                    <th
+                      key={`${header}-${index}`}
+                      style={{ position: 'sticky', top: 0, zIndex: 1, background: '#FAF9F8', whiteSpace: 'nowrap' }}
+                    >
+                      {header}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {preview.rows.map((row, rowIndex) => (
+                  <tr key={`${row[0]}-${rowIndex}`}>
+                    {preview.headers.map((_, cellIndex) => (
+                      <td
+                        key={`${rowIndex}-${cellIndex}`}
+                        style={{
+                          maxWidth: cellIndex === 2 || cellIndex === 13 ? 280 : 150,
+                          whiteSpace: cellIndex === 2 || cellIndex === 13 ? 'normal' : 'nowrap',
+                          verticalAlign: 'top',
+                          fontSize: 11,
+                        }}
+                      >
+                        {row[cellIndex]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
       </div>
 
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0 8px', fontSize: 10, color: '#C8C6C4' }}>
         <span>Bioflex · Calidad Comercial</span>
-        <span>Reportes v2.0 · Período Sep 2025 – Feb 2026</span>
+        <span>Reportes v2.0 · Exportación Excel</span>
       </div>
     </div>
   );
