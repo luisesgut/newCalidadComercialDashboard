@@ -1,4 +1,4 @@
-const FORCE_MAINTENANCE_MODE = true;
+const FORCE_MAINTENANCE_MODE = false;
 
 export const MAINTENANCE_MODE = FORCE_MAINTENANCE_MODE || import.meta.env.VITE_MAINTENANCE_MODE === 'true';
 

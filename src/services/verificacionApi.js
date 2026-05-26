@@ -73,8 +73,20 @@ export function getDefectosFamilias({ desde, hasta, cliente, tipoProceso } = {})
   return request('/dashboard/defectos-familias', { desde, hasta, cliente, tipoProceso });
 }
 
+export function getTendenciaAprobacion({ desde, hasta, cliente, tipoProceso } = {}) {
+  return request('/dashboard/tendencia-aprobacion', { desde, hasta, cliente, tipoProceso });
+}
+
+export function getTarimasPorDiaMes({ anio, mes, cliente, tipoProceso } = {}) {
+  return request('/dashboard/tarimas-por-dia-mes', { anio, mes, cliente, tipoProceso });
+}
+
 export function getResumenOrden(numeroOrden) {
   return request(`/orden/${encodeURIComponent(numeroOrden)}`);
+}
+
+export function getPrintCards() {
+  return request('/printcards');
 }
 
 export function getVerificacionesConFotos({ desde, hasta } = {}) {

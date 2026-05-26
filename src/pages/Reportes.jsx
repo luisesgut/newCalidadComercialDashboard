@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { AlertTriangle, Download, FileSpreadsheet, Info, RefreshCw, X } from 'lucide-react';
+import { Download, FileSpreadsheet, HelpCircle, Info, RefreshCw, X } from 'lucide-react';
 
 const BASE_URL = 'http://172.16.10.31/api/Verificacion/exportar-excel';
 const today = new Date().toISOString().slice(0, 10);
@@ -8,10 +8,13 @@ const defaultDesde = new Date(new Date().getFullYear(), new Date().getMonth(), 1
 
 function buildExcelUrl(desde, hasta) {
   const params = new URLSearchParams();
-  if (desde) params.set('desde', desde);
-  if (hasta) params.set('hasta', hasta);
-  const query = params.toString();
-  return `${BASE_URL}${query ? '?' + query : ''}`;
+  params.set('desde', desde || '');
+  params.set('hasta', hasta || '');
+  return `${BASE_URL}?${params.toString()}`;
+}
+
+function buildGlobalExcelUrl() {
+  return `${BASE_URL}?global=true`;
 }
 
 function parseExcelPreview(buffer) {
@@ -31,6 +34,54 @@ function parseExcelPreview(buffer) {
   };
 }
 
+function HelpIcon({ text, open, onToggle }) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label="Ver ayuda"
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 4,
+          border: '1px solid #EDEBE9',
+          background: open ? '#F3F2F1' : '#fff',
+          color: '#605E5C',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          padding: 0,
+        }}
+      >
+        <HelpCircle size={13} />
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            zIndex: 30,
+            top: 'calc(100% + 6px)',
+            right: 0,
+            width: 260,
+            background: '#fff',
+            border: '1px solid #EDEBE9',
+            borderRadius: 4,
+            boxShadow: '0 8px 22px rgba(0,0,0,.14)',
+            padding: '9px 10px',
+            fontSize: 11,
+            lineHeight: 1.45,
+            color: '#605E5C',
+          }}
+        >
+          {text}
+        </div>
+      )}
+    </span>
+  );
+}
+
 export default function Reportes({ accent, initialDesde = defaultDesde, initialHasta = today }) {
   const [desde, setDesde] = useState(initialDesde);
   const [hasta, setHasta] = useState(initialHasta);
@@ -38,16 +89,14 @@ export default function Reportes({ accent, initialDesde = defaultDesde, initialH
   const [loadingPreview, setLoadingPreview] = useState(true);
   const [previewError, setPreviewError] = useState('');
   const [showIntro, setShowIntro] = useState(true);
+  const [openHelp, setOpenHelp] = useState('');
 
   const descargarExcel = () => {
     window.open(buildExcelUrl(desde, hasta), '_blank');
   };
 
-  const limpiarRango = () => {
-    setLoadingPreview(true);
-    setPreviewError('');
-    setDesde('');
-    setHasta('');
+  const descargarHistorico = () => {
+    window.open(buildGlobalExcelUrl(), '_blank');
   };
 
   const cargarPreview = async () => {
@@ -118,14 +167,7 @@ export default function Reportes({ accent, initialDesde = defaultDesde, initialH
 
             <div style={{ fontSize: 12, color: '#605E5C', lineHeight: 1.6, display: 'grid', gap: 10 }}>
               <p>Desde esta sección puedes descargar el Excel de verificaciones para usar los datos como necesites: filtrar, cruzar información, compartirlo o trabajarlo fuera del dashboard.</p>
-              <p>Si seleccionas un rango, la descarga se limita a esas fechas. Si dejas vacíos los campos Desde y Hasta, se descarga el histórico completo desde que inició el sistema.</p>
-            </div>
-
-            <div style={{ marginTop: 14, background: '#FFF4CE', border: '1px solid #F2C812', borderRadius: 4, padding: '10px 12px', display: 'flex', gap: 8 }}>
-              <AlertTriangle size={15} color="#7A4F01" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div style={{ fontSize: 11, color: '#7A4F01', lineHeight: 1.5 }}>
-                Se detectó un bug en los tiempos de verificaciones y ya quedó solucionado. Si encuentran alguna diferencia histórica en tiempos, avísenlo para revisarla.
-              </div>
+              <p>Usa Todo el histórico para exportar todos los registros, o Descargar Excel para exportar solo el período seleccionado.</p>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
@@ -150,7 +192,7 @@ export default function Reportes({ accent, initialDesde = defaultDesde, initialH
           </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#252423' }}>Descarga de reportes</div>
-            <div style={{ fontSize: 11, color: '#A19F9D', marginTop: 2 }}>Selecciona un rango o deja las fechas vacías para exportar todo el histórico.</div>
+            <div style={{ fontSize: 11, color: '#A19F9D', marginTop: 2 }}>Exporta todo el histórico o descarga solo el período seleccionado.</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -184,11 +226,16 @@ export default function Reportes({ accent, initialDesde = defaultDesde, initialH
           </label>
           <button
             className="filter-btn"
-            onClick={limpiarRango}
+            onClick={descargarHistorico}
             style={{ whiteSpace: 'nowrap' }}
           >
             Todo el histórico
           </button>
+          <HelpIcon
+            text="Genera un Excel con todo el histórico de todas las verificaciones desde que inició el sistema, incluyendo todos los movimientos."
+            open={openHelp === 'historico'}
+            onToggle={() => setOpenHelp(openHelp === 'historico' ? '' : 'historico')}
+          />
           <button
             onClick={descargarExcel}
             style={{
@@ -199,13 +246,11 @@ export default function Reportes({ accent, initialDesde = defaultDesde, initialH
           >
               <Download size={13} /> Descargar Excel
           </button>
-        </div>
-      </div>
-
-      <div style={{ background: '#FFF4CE', border: '1px solid #F2C812', borderRadius: 4, padding: '10px 12px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <AlertTriangle size={15} color="#7A4F01" style={{ flexShrink: 0, marginTop: 1 }} />
-        <div style={{ fontSize: 11, color: '#7A4F01', lineHeight: 1.5 }}>
-          Aviso: se detectó un bug en los tiempos de verificaciones y ya quedó solucionado. Si encuentran alguna diferencia en tiempos históricos, repórtenla para revisarla.
+          <HelpIcon
+            text="Genera un Excel con los registros de las verificaciones y sus movimientos hechos durante el período de tiempo elegido."
+            open={openHelp === 'periodo'}
+            onToggle={() => setOpenHelp(openHelp === 'periodo' ? '' : 'periodo')}
+          />
         </div>
       </div>
 

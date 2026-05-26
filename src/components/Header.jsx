@@ -42,9 +42,7 @@ export default function Header({ activePage, period, onPeriod, accent }) {
             ))}
           </>
         )}
-        <button className="filter-btn" title="Actualizar" style={{ padding: '5px 8px' }}>
-          <RefreshCw size={13} />
-        </button>
+       
       </div>
     </div>
   );
