@@ -6,7 +6,7 @@ const FILE_BASE_URL = API_BASE_URL.replace(/\/api\/Verificacion\/?$/i, '');
 function toQuery(params = {}) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
+    if (value !== undefined && value !== null && value !== '' && value !== 'todos') {
       query.set(key, value);
     }
   });
@@ -29,27 +29,25 @@ async function request(path, params) {
   return payload;
 }
 
-export function getDashboardAnalytics({ desde, hasta } = {}) {
-  const range = { desde, hasta };
+export function getDashboardAnalytics({ desde, hasta, cliente, tipoProceso } = {}) {
+  const range = { desde, hasta, cliente, tipoProceso };
   return Promise.allSettled([
-    request('/dashboard/defectos-por-producto', range),
     request('/dashboard/rechazos-con-defectos', range),
     request('/dashboard/eficiencia-operadora', range),
     request('/dashboard/tendencia-aprobacion', range),
-    request('/dashboard-global-filtrado', range),
     request('/dashboard/tarimas-por-turno', range),
     request('/dashboard/tarimas-por-dia-mes', {
       anio: desde ? Number(desde.slice(0, 4)) : undefined,
       mes: desde ? Number(desde.slice(5, 7)) : undefined,
+      cliente,
+      tipoProceso,
     }),
     request('/dashboard/historico-mensual', range),
   ]).then((results) => {
     const [
-      defectosPorProducto,
       rechazosConDefectos,
       eficienciaOperadora,
       tendenciaAprobacion,
-      dashboardGlobal,
       tarimasPorTurno,
       tarimasPorDiaMes,
       historicoMensual,
@@ -60,11 +58,9 @@ export function getDashboardAnalytics({ desde, hasta } = {}) {
       .map((result) => result.reason.message);
 
     return {
-      defectosPorProducto,
       rechazosConDefectos,
       eficienciaOperadora,
       tendenciaAprobacion,
-      dashboardGlobal,
       tarimasPorTurno,
       tarimasPorDiaMes,
       historicoMensual,
@@ -73,8 +69,8 @@ export function getDashboardAnalytics({ desde, hasta } = {}) {
   });
 }
 
-export function getDefectosFamilias({ desde, hasta, cliente } = {}) {
-  return request('/dashboard/defectos-familias', { desde, hasta, cliente: cliente || undefined });
+export function getDefectosFamilias({ desde, hasta, cliente, tipoProceso } = {}) {
+  return request('/dashboard/defectos-familias', { desde, hasta, cliente, tipoProceso });
 }
 
 export function getResumenOrden(numeroOrden) {

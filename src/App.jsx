@@ -2,11 +2,13 @@ import { useState } from 'react';
 import './index.css';
 import Sidebar       from './components/Sidebar';
 import Header        from './components/Header';
+import MaintenanceScreen from './components/MaintenanceScreen';
 import Dashboard     from './pages/Dashboard';
 import Verificaciones from './pages/Verificaciones';
 import Hallazgos     from './pages/Hallazgos';
 import Reportes      from './pages/Reportes';
 import Configuracion from './pages/Configuracion';
+import { MAINTENANCE_MODE } from './middleware/maintenanceMode';
 
 const fmtDate = (date) => date.toISOString().slice(0, 10);
 
@@ -30,7 +32,7 @@ function getPeriodRange(period) {
   return { desde: fmtDate(start), hasta: end };
 }
 
-export default function App() {
+function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activePage,       setActivePage]       = useState('dashboard');
   const [period,           setPeriod]           = useState('Mes');
@@ -81,4 +83,8 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+export default function App() {
+  return MAINTENANCE_MODE ? <MaintenanceScreen /> : <AppShell />;
 }

@@ -16,6 +16,20 @@ const today = new Date().toISOString().slice(0, 10);
 const defaultDesde = '2026-04-01';
 const EMPTY_ARRAY = [];
 const EMPTY_OBJECT = {};
+const CLIENTES = ['Quality', 'Destiny', 'Pollos Guerrero', 'Mr Lucky', 'Mayalatex'];
+const AREAS = ['POUCH', 'BOLSEO'];
+const ESTATUS_COLORS = {
+  Aprobada: '#0078D4',
+  'Con hallazgos': '#D29200',
+  'Desviación': '#F97316',
+  Rechazada: '#A80000',
+};
+
+const estatusCierreBadge = (estatus) => {
+  if (estatus === 'Aprobada') return 'badge-done';
+  if (estatus === 'Con hallazgos' || estatus === 'Desviación') return 'badge-major';
+  return 'badge-critical';
+};
 
 const fmt = (value, digits = 0) => Number(value || 0).toLocaleString('es-MX', {
   maximumFractionDigits: digits,
@@ -57,14 +71,15 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
   const [orderResult, setOrderResult] = useState(null);
   const [orderError, setOrderError] = useState('');
   const [orderLoading, setOrderLoading] = useState(false);
-  const [clienteDefectos, setClienteDefectos] = useState('');
+  const [cliente, setCliente] = useState('todos');
+  const [tipoProceso, setTipoProceso] = useState('todos');
   const [defectosFamilias, setDefectosFamilias] = useState(EMPTY_ARRAY);
 
   const load = async () => {
     setLoading(true);
     setErrors([]);
     try {
-      const payload = await getDashboardAnalytics({ desde, hasta });
+      const payload = await getDashboardAnalytics({ desde, hasta, cliente, tipoProceso });
       setData(payload);
       setErrors(payload.errors || []);
     } catch (error) {
@@ -78,7 +93,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
   useEffect(() => {
     let ignore = false;
 
-    getDashboardAnalytics({ desde, hasta })
+    getDashboardAnalytics({ desde, hasta, cliente, tipoProceso })
       .then((payload) => {
         if (!ignore) {
           setData(payload);
@@ -100,15 +115,15 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
     return () => {
       ignore = true;
     };
-  }, [desde, hasta]);
+  }, [desde, hasta, cliente, tipoProceso]);
 
   useEffect(() => {
     let ignore = false;
-    getDefectosFamilias({ desde, hasta, cliente: clienteDefectos || undefined })
+    getDefectosFamilias({ desde, hasta, cliente, tipoProceso })
       .then((payload) => { if (!ignore) setDefectosFamilias(Array.isArray(payload) ? payload : EMPTY_ARRAY); })
       .catch(() => { if (!ignore) setDefectosFamilias(EMPTY_ARRAY); });
     return () => { ignore = true; };
-  }, [desde, hasta, clienteDefectos]);
+  }, [desde, hasta, cliente, tipoProceso]);
 
   const historico = data?.historicoMensual?.meses || EMPTY_ARRAY;
   const ultimoMes = historico[historico.length - 1] || EMPTY_OBJECT;
@@ -118,28 +133,30 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
   const diaMes = data?.tarimasPorDiaMes || EMPTY_OBJECT;
   const promedioDiarioMes = diaMes.promedioDiario ?? diaMes.promediodiariO ?? 0;
   const eficiencia = data?.eficienciaOperadora?.operadoras || EMPTY_ARRAY;
+  const tasaAprobacionReal = ultimoMes.tasaAprobacionReal ?? tendencia.promedioGeneral;
+  const tasaAprobacionColor = tasaAprobacionReal >= 80
+    ? '#107C10'
+    : tasaAprobacionReal >= 60
+      ? '#D29200'
+      : '#A80000';
 
   const kpis = useMemo(() => {
     const totalCajasOperadoras = eficiencia.reduce((sum, item) => sum + Number(item.totalCajas || 0), 0);
     return [
       {
         label: 'Tarimas del período',
-        value: fmt(
-          ultimoMes.totalTarimas !== undefined
-            ? (ultimoMes.totalTarimas || 0) + (ultimoMes.tarimasSinEstatus || 0)
-            : (rechazos.totalAprobadas || 0) + (rechazos.totalRechazos || 0)
-        ),
-        sub: `${fmt(rechazos.totalRechazos)} rechazadas · ${fmt(ultimoMes.tarimasSinEstatus)} sin estatus`,
+        value: fmt(ultimoMes.totalTarimas ?? ((rechazos.totalAprobadas || 0) + (rechazos.totalRechazos || 0))),
+        sub: `${fmt(ultimoMes.tarimasAprobadas)} aprobadas · ${fmt(ultimoMes.tarimasConHallazgos)} con hallazgos · ${fmt(ultimoMes.tarimasDesviadas)} desviadas · ${fmt(ultimoMes.tarimasRechazadas)} rechazadas`,
         icon: Package,
         accent,
       },
       {
         label: 'Tasa aprobación',
-        value: pct(ultimoMes.tasaAprobacion || tendencia.promedioGeneral),
+        value: pct(tasaAprobacionReal),
         sub: `Tendencia: ${tendencia.tendencia || 'Sin datos'}`,
         icon: TrendingUp,
-        accent: '#107C10',
-        color: '#107C10',
+        accent: tasaAprobacionColor,
+        color: tasaAprobacionColor,
       },
       {
         label: 'Cajas revisadas',
@@ -149,7 +166,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
         accent: '#00B7C3',
       },
     ];
-  }, [accent, eficiencia, rechazos, tendencia, ultimoMes]);
+  }, [accent, eficiencia, rechazos, tasaAprobacionColor, tasaAprobacionReal, tendencia, ultimoMes]);
 
   const defectosPareto = useMemo(() => {
     const rows = defectosFamilias
@@ -194,8 +211,10 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
   const tarimasMes = historico.map((item) => ({
     periodo: monthLabel(item),
     aprobadas: item.tarimasAprobadas,
+    conHallazgos: item.tarimasConHallazgos,
+    desviadas: item.tarimasDesviadas,
     rechazadas: item.tarimasRechazadas,
-    total: (item.totalTarimas || 0) + (item.tarimasSinEstatus || 0),
+    total: item.totalTarimas || 0,
   }));
 
   const buscarOrden = async (event) => {
@@ -245,6 +264,40 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
             style={{ width: 140 }}
           />
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#605E5C' }}>
+          Cliente
+          <select
+            className="pbi-select"
+            value={cliente}
+            onChange={(event) => {
+              setLoading(true);
+              setCliente(event.target.value);
+            }}
+            style={{ minWidth: 160 }}
+          >
+            <option value="todos">Todos</option>
+            {CLIENTES.map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#605E5C' }}>
+          Área
+          <select
+            className="pbi-select"
+            value={tipoProceso}
+            onChange={(event) => {
+              setLoading(true);
+              setTipoProceso(event.target.value);
+            }}
+            style={{ minWidth: 120 }}
+          >
+            <option value="todos">Todas</option>
+            {AREAS.map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+        </label>
         <button className="filter-btn" onClick={load} disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <RefreshCw size={13} /> {loading ? 'Cargando' : 'Actualizar'}
         </button>
@@ -270,7 +323,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
                 <YAxis type="category" dataKey="usuario" width={132} tick={{ fill: '#605E5C', fontSize: 9 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="totalCajas" name="Cajas" radius={[0, 3, 3, 0]} barSize={22}>
-                  {eficiencia.map((item) => <Cell key={item.usuario} fill={item.colorHex || '#94A3B8'} />)}
+                  {eficiencia.map((item) => <Cell key={item.usuario} fill="#0078D4" />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -292,7 +345,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
                 <XAxis dataKey="etiqueta" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="tasaAprobacion" name="% Aprobación" stroke="#107C10" strokeWidth={2} fill="url(#gradAprobacion)" />
+                <Area type="monotone" dataKey="tasaAprobacionReal" name="% Aprobación" stroke="#107C10" strokeWidth={2} fill="url(#gradAprobacion)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : <EmptyState />}
@@ -325,7 +378,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
         </div>
 
         <div className="card" style={{ padding: '12px 14px' }}>
-          <CardTitle title="Histórico mensual comparativo" sub="Tarimas aprobadas, rechazadas y total" />
+          <CardTitle title="Histórico mensual comparativo" sub="Tarimas aprobadas, con hallazgos, desviadas, rechazadas y total" />
           {tarimasMes.length ? (
             <ResponsiveContainer width="100%" height={210}>
               <ComposedChart data={tarimasMes} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
@@ -333,8 +386,10 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
                 <XAxis dataKey="periodo" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="aprobadas" name="Aprobadas" fill={accent} radius={[3, 3, 0, 0]} barSize={18} />
-                <Bar dataKey="rechazadas" name="Rechazadas" fill="#A80000" radius={[3, 3, 0, 0]} barSize={18} />
+                <Bar dataKey="aprobadas" name="Aprobadas" fill={ESTATUS_COLORS.Aprobada} radius={[3, 3, 0, 0]} barSize={10} />
+                <Bar dataKey="conHallazgos" name="Con hallazgos" fill={ESTATUS_COLORS['Con hallazgos']} radius={[3, 3, 0, 0]} barSize={10} />
+                <Bar dataKey="desviadas" name="Desviación" fill={ESTATUS_COLORS['Desviación']} radius={[3, 3, 0, 0]} barSize={10} />
+                <Bar dataKey="rechazadas" name="Rechazadas" fill={ESTATUS_COLORS.Rechazada} radius={[3, 3, 0, 0]} barSize={10} />
                 <Line dataKey="total" name="Total" stroke="#F2C812" strokeWidth={2} dot={{ fill: '#F2C812', r: 3 }} />
               </ComposedChart>
             </ResponsiveContainer>
@@ -342,23 +397,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
         </div>
 
         <div className="card" style={{ padding: '12px 14px' }}>
-          <CardTitle
-            title="Familias de defectos"
-            sub="Frecuencia detectada"
-            action={
-              <select
-                className="pbi-input"
-                value={clienteDefectos}
-                onChange={(e) => setClienteDefectos(e.target.value)}
-                style={{ fontSize: 11, padding: '3px 8px', height: 'auto' }}
-              >
-                <option value="">Todos</option>
-                <option value="Destiny">Destiny</option>
-                <option value="Quality">Quality</option>
-                <option value="Bioflex">Bioflex</option>
-              </select>
-            }
-          />
+          <CardTitle title="Familias de defectos" sub="Frecuencia detectada" />
           {defectosFamilia.length ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 128, height: 128, flexShrink: 0 }}>
@@ -558,7 +597,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
                       <div key={tarima.tarimaId} style={{ border: '1px solid #EDEBE9', borderRadius: 4, padding: '8px 10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                           <span style={{ fontWeight: 700, fontSize: 12 }}>Tarima #{tarima.numeroTarima}</span>
-                          <span className={`badge ${tarima.estatusCierre === 'Aprobada' ? 'badge-done' : tarima.estatusCierre === 'Con hallazgos' ? 'badge-major' : 'badge-critical'}`}>
+                          <span className={`badge ${estatusCierreBadge(tarima.estatusCierre)}`}>
                             {tarima.estatusCierre}
                           </span>
                         </div>
@@ -607,7 +646,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0 8px', fontSize: 10, color: '#C8C6C4' }}>
         <span>Bioflex · Calidad Comercial</span>
-        <span>Dashboard analítico · {desde} a {hasta} · Base API 172.16.10.31</span>
+        <span>Dashboard analítico · {desde} a {hasta} · Cliente: {cliente === 'todos' ? 'Todos' : cliente} · Área: {tipoProceso === 'todos' ? 'Todas' : tipoProceso} · Base API 172.16.10.31</span>
       </div>
     </div>
   );
