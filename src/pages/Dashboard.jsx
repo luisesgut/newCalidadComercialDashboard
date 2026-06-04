@@ -622,8 +622,8 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
         <div id="tour-eficiencia" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Eficiencia por operador"
-            sub="Cajas escaneadas y productividad"
-            action={<HelpIcon text="Compara la productividad por operador con base en las cajas escaneadas durante el rango seleccionado." open={openHelp === 'eficiencia'} onToggle={() => setOpenHelp(openHelp === 'eficiencia' ? '' : 'eficiencia')} />}
+          sub="Tarimas creadas"
+            action={<HelpIcon text="Compara la productividad por operador con base en las tarimas creadas durante el rango seleccionado." open={openHelp === 'eficiencia'} onToggle={() => setOpenHelp(openHelp === 'eficiencia' ? '' : 'eficiencia')} />}
           />
           {(() => {
             const usaInteractivo = interactivo.porOperador.length > 0;
@@ -637,7 +637,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
                   <XAxis type="number" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="operador" width={132} tick={{ fill: '#605E5C', fontSize: 9 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="total" name="Cajas" radius={[0, 3, 3, 0]} barSize={22}
+                  <Bar dataKey="total" name="Tarimas" radius={[0, 3, 3, 0]} barSize={22}
                        onClick={usaInteractivo ? (data) => toggleFiltro('operador', data.operador) : undefined}
                        cursor={usaInteractivo ? 'pointer' : 'default'}>
                     {datosEficiencia.map((item) => (
