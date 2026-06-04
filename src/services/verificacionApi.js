@@ -97,6 +97,10 @@ export function getReporteEvidencias(id) {
   return request(`/reporte-evidencias/${encodeURIComponent(id)}`);
 }
 
+export function getDetalleInteractivo({ desde, hasta, cliente, tipoProceso } = {}) {
+  return request('/dashboard/detalle-interactivo', { desde, hasta, cliente, tipoProceso });
+}
+
 export function getFileUrl(path) {
   if (!path) return '';
   if (/^https?:\/\//i.test(path)) return path;

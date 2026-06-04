@@ -4,6 +4,7 @@ import Sidebar       from './components/Sidebar';
 import Header        from './components/Header';
 import MaintenanceScreen from './components/MaintenanceScreen';
 import Dashboard     from './pages/Dashboard';
+import { DashboardFilterProvider } from './context/DashboardFilterContext';
 import Verificaciones from './pages/Verificaciones';
 import Hallazgos     from './pages/Hallazgos';
 import Reportes      from './pages/Reportes';
@@ -41,7 +42,7 @@ function AppShell() {
   const range = getPeriodRange(period);
 
   const PAGE = {
-    dashboard:      <Dashboard      key={`dashboard-${period}`} accent={accent} initialDesde={range.desde} initialHasta={range.hasta} />,
+    dashboard:      <DashboardFilterProvider key={`dashboard-${period}`}><Dashboard accent={accent} initialDesde={range.desde} initialHasta={range.hasta} /></DashboardFilterProvider>,
     verificaciones: <Verificaciones accent={accent} />,
     hallazgos:      <Hallazgos      accent={accent} />,
     reportes:       <Reportes       accent={accent} />,

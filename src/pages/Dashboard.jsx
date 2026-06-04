@@ -12,9 +12,13 @@ import CustomTooltip from '../components/CustomTooltip';
 import {
   getDashboardAnalytics,
   getDefectosFamilias,
+  getDetalleInteractivo,
   getPrintCards,
   getResumenOrden,
 } from '../services/verificacionApi';
+import { DashboardFilterProvider, useDashboardFilter } from '../context/DashboardFilterContext';
+import { useDashboardInteractivo } from '../hooks/useDashboardInteractivo';
+import DashboardTour from '../components/DashboardTour';
 
 const COLORS_PIE = ['#0078D4', '#00B7C3', '#F2C812', '#8B5CF6', '#94A3B8'];
 const today = new Date().toISOString().slice(0, 10);
@@ -112,7 +116,8 @@ function HelpIcon({ text, open, onToggle }) {
   );
 }
 
-export default function Dashboard({ accent, initialDesde = defaultDesde, initialHasta = today }) {
+function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = today }) {
+  const [tourActivo, setTourActivo] = useState(false);
   const [desde, setDesde] = useState(initialDesde);
   const [hasta, setHasta] = useState(initialHasta);
   const [data, setData] = useState(null);
@@ -131,6 +136,9 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
   const [cliente, setCliente] = useState('todos');
   const [tipoProceso, setTipoProceso] = useState('todos');
   const [defectosFamilias, setDefectosFamilias] = useState(EMPTY_ARRAY);
+  const [tarimasDetalle, setTarimasDetalle] = useState(EMPTY_ARRAY);
+  const { filtros, toggleFiltro, limpiarFiltros, hayFiltros } = useDashboardFilter();
+  const interactivo = useDashboardInteractivo(tarimasDetalle, filtros);
 
   const load = async () => {
     setLoading(true);
@@ -204,6 +212,21 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
     return () => { ignore = true; };
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    console.log('Cargando detalle interactivo...', { desde, hasta, cliente, tipoProceso });
+    getDetalleInteractivo({ desde, hasta, cliente, tipoProceso })
+      .then((payload) => {
+        console.log('Detalle interactivo recibido:', payload?.length, 'tarimas');
+        if (!ignore) setTarimasDetalle(Array.isArray(payload) ? payload : EMPTY_ARRAY);
+      })
+      .catch((err) => {
+        console.error('Error detalle interactivo:', err);
+        if (!ignore) setTarimasDetalle(EMPTY_ARRAY);
+      });
+    return () => { ignore = true; };
+  }, [desde, hasta, cliente, tipoProceso]);
+
   const historico = data?.historicoMensual?.meses || EMPTY_ARRAY;
   const ultimoMes = historico[historico.length - 1] || EMPTY_OBJECT;
   const rechazos = data?.rechazosConDefectos || EMPTY_OBJECT;
@@ -221,6 +244,38 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
 
   const kpis = useMemo(() => {
     const totalCajasOperadoras = eficiencia.reduce((sum, item) => sum + Number(item.totalCajas || 0), 0);
+    if (hayFiltros && interactivo.datos.length > 0) {
+      const ap = interactivo.porEstatus['Aprobada'] || 0;
+      const ch = interactivo.porEstatus['Con hallazgos'] || 0;
+      const des = interactivo.porEstatus['Desviación'] || 0;
+      const rec = interactivo.porEstatus['Rechazada'] || 0;
+      const tasa = interactivo.tasaAprobacion;
+      const tasaColor = tasa >= 80 ? '#107C10' : tasa >= 60 ? '#D29200' : '#A80000';
+      return [
+        {
+          label: 'Tarimas del período',
+          value: fmt(interactivo.datos.length),
+          sub: `${fmt(ap)} aprobadas · ${fmt(ch)} con hallazgos · ${fmt(des)} desviadas · ${fmt(rec)} rechazadas`,
+          icon: Package,
+          accent,
+        },
+        {
+          label: 'Tasa aprobación',
+          value: pct(tasa),
+          sub: 'Filtro activo',
+          icon: TrendingUp,
+          accent: tasaColor,
+          color: tasaColor,
+        },
+        {
+          label: 'Cajas revisadas',
+          value: fmt(interactivo.cajasRevisadas),
+          sub: `${fmt(interactivo.verificaciones)} verificaciones filtradas`,
+          icon: CheckSquare,
+          accent: '#00B7C3',
+        },
+      ];
+    }
     return [
       {
         label: 'Tarimas del período',
@@ -245,7 +300,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
         accent: '#00B7C3',
       },
     ];
-  }, [accent, eficiencia, rechazos, tasaAprobacionColor, tasaAprobacionReal, tendencia, ultimoMes]);
+  }, [accent, eficiencia, hayFiltros, interactivo, rechazos, tasaAprobacionColor, tasaAprobacionReal, tendencia, ultimoMes]);
 
   const paretoConfig = paretoMode === 'piezas'
     ? {
@@ -293,6 +348,17 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
       color: COLORS_PIE[index % COLORS_PIE.length],
     }))
   ), [defectosFamilias]);
+
+  const defectosFamiliaInteractivo = useMemo(() => {
+    if (!interactivo.porFamilia.length) return defectosFamilia;
+    const total = interactivo.porFamilia.reduce((s, f) => s + f.veces, 0) || 1;
+    return interactivo.porFamilia.slice(0, 5).map((item, index) => ({
+      nombre: item.familia,
+      cantidad: item.veces,
+      porcentaje: Math.round((item.veces / total) * 1000) / 10,
+      color: COLORS_PIE[index % COLORS_PIE.length],
+    }));
+  }, [interactivo.porFamilia, defectosFamilia]);
 
   const semanas = (tendencia.semanas || []).map((semana) => ({
     ...semana,
@@ -405,9 +471,43 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
     }
   };
 
+  const barColor = (valor, seleccionado) =>
+    !seleccionado || seleccionado === valor ? undefined : '#B4B2A9';
+
+  const usaFiltroInteractivo = hayFiltros && interactivo.datos.length > 0;
+
+  const statsValidacion = usaFiltroInteractivo ? {
+    total: interactivo.datos.length,
+    aprobadas: interactivo.porEstatus['Aprobada'] || 0,
+    conHallazgos: interactivo.porEstatus['Con hallazgos'] || 0,
+    desviadas: interactivo.porEstatus['Desviación'] || 0,
+    rechazadas: interactivo.porEstatus['Rechazada'] || 0,
+    verificaciones: interactivo.verificaciones,
+  } : {
+    total: tendenciaTarimas.total,
+    aprobadas: tendenciaTarimas.aprobadas,
+    conHallazgos: tendenciaTarimas.conHallazgos,
+    desviadas: tendenciaTarimas.desviadas,
+    rechazadas: tendenciaTarimas.rechazadas,
+    verificaciones: tendenciaTarimas.verificaciones,
+  };
+
+  const semanasVista = usaFiltroInteractivo && interactivo.porSemana.length
+    ? interactivo.porSemana
+    : semanas;
+
+  const tarimasDiaVista = usaFiltroInteractivo && interactivo.porDiaTurno.length
+    ? interactivo.porDiaTurno.map((item) => ({ ...item, dia: dateLabel(item.fecha) }))
+    : tarimasDia;
+
+  const resumenTurnoVista = usaFiltroInteractivo
+    ? interactivo.resumenTurno
+    : [turno.resumenMatutino, turno.resumenVespertino].filter(Boolean);
+
   return (
     <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <DashboardTour run={tourActivo} onFinish={() => setTourActivo(false)} />
+      <div id="tour-filtros" className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#252423' }}>
           <CalendarDays size={15} color={accent} /> Rango analítico
         </div>
@@ -477,41 +577,80 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
         <div style={{ marginLeft: 'auto', fontSize: 10, color: errors.length ? '#A80000' : '#107C10', fontWeight: 600 }}>
           {errors.length ? `${errors.length} endpoint(s) sin respuesta` : 'API en vivo'}
         </div>
+        <button
+          onClick={() => setTourActivo(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#605E5C', background: '#F3F2F1', border: '1px solid #EDEBE9', borderRadius: 4, padding: '4px 10px', cursor: 'pointer' }}
+        >
+          &#9654; Recorrido
+        </button>
       </div>
 
-      <div style={{ background: '#FFF4CE', border: '1px solid #F2C812', borderRadius: 4, padding: '10px 12px', fontSize: 11, color: '#7A4F01', fontWeight: 600 }}>
-        La funcionalidad de clicks interactivos entre gráficos está en desarrollo.
-      </div>
+      {hayFiltros && (
+        <div id="tour-filtros-chip" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 4 }}>
+          <span style={{ fontSize: 11, color: '#1D4ED8', fontWeight: 600 }}>Filtrando por:</span>
+          {filtros.operador && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#DBEAFE', color: '#1D4ED8', fontSize: 11, padding: '2px 8px', borderRadius: 20 }}>
+              {filtros.operador}
+              <X size={11} style={{ cursor: 'pointer' }} onClick={() => toggleFiltro('operador', filtros.operador)} />
+            </span>
+          )}
+          {filtros.turno && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#DBEAFE', color: '#1D4ED8', fontSize: 11, padding: '2px 8px', borderRadius: 20 }}>
+              {filtros.turno}
+              <X size={11} style={{ cursor: 'pointer' }} onClick={() => toggleFiltro('turno', filtros.turno)} />
+            </span>
+          )}
+          {filtros.familiaDefecto && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#DBEAFE', color: '#1D4ED8', fontSize: 11, padding: '2px 8px', borderRadius: 20 }}>
+              {filtros.familiaDefecto}
+              <X size={11} style={{ cursor: 'pointer' }} onClick={() => toggleFiltro('familiaDefecto', filtros.familiaDefecto)} />
+            </span>
+          )}
+          <button onClick={limpiarFiltros} style={{ marginLeft: 'auto', fontSize: 11, background: 'none', border: 'none', color: '#1D4ED8', cursor: 'pointer', textDecoration: 'underline' }}>
+            Limpiar todo
+          </button>
+        </div>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+      <div id="tour-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
         {kpis.map((kpi) => (
           <KPICard key={kpi.label} {...kpi} />
         ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.45fr 1fr', gap: 10 }}>
-        <div className="card" style={{ padding: '12px 14px' }}>
+        <div id="tour-eficiencia" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Eficiencia por operador"
             sub="Cajas escaneadas y productividad"
             action={<HelpIcon text="Compara la productividad por operador con base en las cajas escaneadas durante el rango seleccionado." open={openHelp === 'eficiencia'} onToggle={() => setOpenHelp(openHelp === 'eficiencia' ? '' : 'eficiencia')} />}
           />
-          {eficiencia.length ? (
-            <ResponsiveContainer width="100%" height={Math.max(260, eficiencia.length * 36)}>
-              <BarChart data={eficiencia} layout="vertical" margin={{ top: 4, right: 16, left: 136, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" horizontal={false} />
-                <XAxis type="number" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="usuario" width={132} tick={{ fill: '#605E5C', fontSize: 9 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="totalCajas" name="Cajas" radius={[0, 3, 3, 0]} barSize={22}>
-                  {eficiencia.map((item) => <Cell key={item.usuario} fill="#0078D4" />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : <EmptyState />}
+          {(() => {
+            const usaInteractivo = interactivo.porOperador.length > 0;
+            const datosEficiencia = usaInteractivo
+              ? interactivo.porOperador
+              : eficiencia.map((item) => ({ operador: item.usuario, total: item.totalCajas }));
+            return datosEficiencia.length ? (
+              <ResponsiveContainer width="100%" height={Math.max(260, datosEficiencia.length * 36)}>
+                <BarChart data={datosEficiencia} layout="vertical" margin={{ top: 4, right: 16, left: 136, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="operador" width={132} tick={{ fill: '#605E5C', fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="total" name="Cajas" radius={[0, 3, 3, 0]} barSize={22}
+                       onClick={usaInteractivo ? (data) => toggleFiltro('operador', data.operador) : undefined}
+                       cursor={usaInteractivo ? 'pointer' : 'default'}>
+                    {datosEficiencia.map((item) => (
+                      <Cell key={item.operador} fill={barColor(item.operador, filtros.operador) ?? '#0078D4'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />;
+          })()}
         </div>
 
-        <div className="card" style={{ padding: '12px 14px' }}>
+        <div id="tour-validacion" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Validacion de tarimas"
             action={<HelpIcon text="Muestra la evolución semanal del estatus de las tarimas validadas: aprobadas, con hallazgos, desviadas y rechazadas. La línea indica la tasa de aprobación real." open={openHelp === 'validacion'} onToggle={() => setOpenHelp(openHelp === 'validacion' ? '' : 'validacion')} />}
@@ -520,12 +659,12 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginBottom: 8 }}>
                 {[
-                  ['Tarimas validadas', fmt(tendenciaTarimas.total)],
-                  ['Aprobadas', fmt(tendenciaTarimas.aprobadas), ESTATUS_COLORS.Aprobada],
-                  ['Con hallazgos', fmt(tendenciaTarimas.conHallazgos), ESTATUS_COLORS['Con hallazgos']],
-                  ['Desviadas', fmt(tendenciaTarimas.desviadas), ESTATUS_COLORS['Desviación']],
-                  ['Rechazadas', fmt(tendenciaTarimas.rechazadas), ESTATUS_COLORS.Rechazada],
-                  ['Verificaciones', fmt(tendenciaTarimas.verificaciones)],
+                  ['Tarimas validadas', fmt(statsValidacion.total)],
+                  ['Aprobadas', fmt(statsValidacion.aprobadas), ESTATUS_COLORS.Aprobada],
+                  ['Con hallazgos', fmt(statsValidacion.conHallazgos), ESTATUS_COLORS['Con hallazgos']],
+                  ['Desviadas', fmt(statsValidacion.desviadas), ESTATUS_COLORS['Desviación']],
+                  ['Rechazadas', fmt(statsValidacion.rechazadas), ESTATUS_COLORS.Rechazada],
+                  ['Verificaciones', fmt(statsValidacion.verificaciones)],
                 ].map(([label, value, color]) => (
                   <div key={label} style={{ background: '#F3F2F1', borderRadius: 4, padding: '7px 8px' }}>
                     <div style={{ fontSize: 9, color: '#605E5C' }}>{label}</div>
@@ -535,7 +674,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
               </div>
 
               <ResponsiveContainer width="100%" height={190}>
-                <ComposedChart data={semanas} margin={{ top: 4, right: 0, left: -12, bottom: 0 }}>
+                <ComposedChart data={semanasVista} margin={{ top: 4, right: 0, left: -12, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" vertical={false} />
                   <XAxis dataKey="etiqueta" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis yAxisId="tarimas" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -550,7 +689,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
               </ResponsiveContainer>
 
               <div style={{ display: 'grid', gap: 5, marginTop: 8 }}>
-                {semanas.slice(-4).map((semana) => (
+                {semanasVista.slice(-4).map((semana) => (
                   <div key={semana.semana} style={{ display: 'grid', gridTemplateColumns: '52px 1fr auto', gap: 8, alignItems: 'center', fontSize: 10 }}>
                     <strong style={{ color: '#252423' }}>Sem. {semana.semana}</strong>
                     <span style={{ color: '#605E5C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -566,31 +705,51 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-        <div className="card" style={{ padding: '12px 14px' }}>
+        <div id="tour-turno" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Tarimas por turno"
             sub="Matutino vs vespertino por día"
             action={<HelpIcon text="Ayuda a comparar cuántas tarimas se trabajan por día en turno matutino y vespertino para detectar carga operativa por turno." open={openHelp === 'turno'} onToggle={() => setOpenHelp(openHelp === 'turno' ? '' : 'turno')} />}
           />
-          {tarimasDia.length ? (
+          {tarimasDiaVista.length ? (
             <ResponsiveContainer width="100%" height={210}>
-              <BarChart data={tarimasDia} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+              <BarChart data={tarimasDiaVista} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}
+                        onClick={(chartData) => { if (chartData?.activePayload) toggleFiltro('turno', chartData.activePayload[0]?.name === 'Matutino' ? 'Matutino' : 'Vespertino'); }}
+                        style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" vertical={false} />
                 <XAxis dataKey="dia" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="matutino" name="Matutino" stackId="turno" fill="#22C55E" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="vespertino" name="Vespertino" stackId="turno" fill="#3B82F6" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="matutino" name="Matutino" stackId="turno" fill="#22C55E" radius={[3, 3, 0, 0]}
+                     opacity={!filtros.turno || filtros.turno === 'Matutino' ? 1 : 0.3} />
+                <Bar dataKey="vespertino" name="Vespertino" stackId="turno" fill="#3B82F6" radius={[3, 3, 0, 0]}
+                     opacity={!filtros.turno || filtros.turno === 'Vespertino' ? 1 : 0.3} />
               </BarChart>
             </ResponsiveContainer>
           ) : <EmptyState />}
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            {[turno.resumenMatutino, turno.resumenVespertino].filter(Boolean).map((item) => (
-              <div key={item.turno} style={{ flex: 1, background: '#F3F2F1', borderRadius: 4, padding: 8 }}>
-                <div style={{ fontSize: 10, color: '#605E5C' }}>{item.turno}</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>{fmt(item.totalTarimas)} <span style={{ fontSize: 11, color: '#A19F9D' }}>{pct(item.porcentaje)}</span></div>
-              </div>
-            ))}
+            {resumenTurnoVista.map((item) => {
+              const seleccionado = filtros.turno === item.turno;
+              return (
+                <div
+                  key={item.turno}
+                  onClick={() => toggleFiltro('turno', item.turno)}
+                  style={{
+                    flex: 1,
+                    background: seleccionado ? '#DBEAFE' : '#F3F2F1',
+                    border: seleccionado ? '1px solid #93C5FD' : '1px solid transparent',
+                    borderRadius: 4,
+                    padding: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ fontSize: 10, color: seleccionado ? '#1D4ED8' : '#605E5C', fontWeight: seleccionado ? 700 : 400 }}>{item.turno}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: seleccionado ? '#1D4ED8' : '#252423' }}>
+                    {fmt(item.totalTarimas)} <span style={{ fontSize: 11, color: '#A19F9D', fontWeight: 400 }}>{pct(item.porcentaje)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -617,26 +776,33 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
           ) : <EmptyState />}
         </div>
 
-        <div className="card" style={{ padding: '12px 14px' }}>
+        <div id="tour-familias" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Familias de defectos"
             sub="Frecuencia detectada"
             action={<HelpIcon text="Agrupa los defectos por familia para identificar qué tipo de problema aparece con mayor frecuencia en las verificaciones." open={openHelp === 'familias'} onToggle={() => setOpenHelp(openHelp === 'familias' ? '' : 'familias')} />}
           />
-          {defectosFamilia.length ? (
+          {defectosFamiliaInteractivo.length ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 128, height: 128, flexShrink: 0 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={defectosFamilia} cx="50%" cy="50%" innerRadius={36} outerRadius={58} dataKey="cantidad" strokeWidth={2} stroke="#fff">
-                      {defectosFamilia.map((item) => <Cell key={item.nombre} fill={item.color} />)}
+                    <Pie data={defectosFamiliaInteractivo} cx="50%" cy="50%" innerRadius={36} outerRadius={58}
+                         dataKey="cantidad" strokeWidth={2} stroke="#fff"
+                         onClick={(data) => toggleFiltro('familiaDefecto', data.nombre)}
+                         style={{ cursor: 'pointer' }}>
+                      {defectosFamiliaInteractivo.map((item) => (
+                        <Cell key={item.nombre} fill={item.color}
+                              opacity={!filtros.familiaDefecto || filtros.familiaDefecto === item.nombre ? 1 : 0.3}
+                              strokeWidth={filtros.familiaDefecto === item.nombre ? 3 : 2} />
+                      ))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
               <div style={{ flex: 1 }}>
-                {defectosFamilia.map((item) => (
+                {defectosFamiliaInteractivo.map((item) => (
                   <div key={item.nombre} style={{ marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
                       <span style={{ fontSize: 10, color: '#605E5C' }}>{item.nombre}</span>
@@ -654,7 +820,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
-        <div className="card" style={{ padding: '12px 14px' }}>
+        <div id="tour-pareto" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Pareto de defectos"
             sub={paretoConfig.sub}
@@ -752,7 +918,7 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
       </div>
 
       <div>
-        <div className="card" style={{ padding: '12px 14px' }}>
+        <div id="tour-printcard" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Buscar PrintCard"
             sub="Consulta directa por PrintCard; el lote se resuelve automaticamente"
@@ -985,5 +1151,13 @@ export default function Dashboard({ accent, initialDesde = defaultDesde, initial
         <span>Dashboard analítico · {desde} a {hasta} · Cliente: {cliente === 'todos' ? 'Todos' : cliente} · Área: {tipoProceso === 'todos' ? 'Todas' : tipoProceso} · Base API 172.16.10.31</span>
       </div>
     </div>
+  );
+}
+
+export default function Dashboard(props) {
+  return (
+    <DashboardFilterProvider>
+      <DashboardInner {...props} />
+    </DashboardFilterProvider>
   );
 }
