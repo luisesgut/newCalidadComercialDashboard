@@ -1,9 +1,9 @@
-import { RefreshCw } from 'lucide-react';
-
 const PAGE_TITLES = {
   dashboard:      { title: 'Dashboard', sub: 'Validación de Producto Final' },
   verificaciones: { title: 'Verificaciones', sub: 'Gestión de tarimas y cajas' },
   hallazgos:      { title: 'Hallazgos', sub: 'Seguimiento de no conformidades' },
+  auditoria:      { title: 'Auditoria', sub: 'Trazabilidad de defectos' },
+  analisisProducto: { title: 'Analisis de Calidad por Producto', sub: 'Producto terminado critico' },
   reportes:       { title: 'Reportes', sub: 'Análisis y métricas históricas' },
   configuracion:  { title: 'Configuración', sub: 'Preferencias del sistema' },
 };

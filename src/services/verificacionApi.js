@@ -14,8 +14,8 @@ function toQuery(params = {}) {
   return text ? `?${text}` : '';
 }
 
-async function request(path, params) {
-  const response = await fetch(`${API_BASE_URL}${path}${toQuery(params)}`);
+async function request(path, params, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}${toQuery(params)}`, options);
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json')
     ? await response.json()
@@ -34,20 +34,13 @@ export function getDashboardAnalytics({ desde, hasta, cliente, tipoProceso } = {
   return Promise.allSettled([
     request('/dashboard/rechazos-con-defectos', range),
     request('/dashboard/eficiencia-operadora', range),
-    request('/dashboard/tendencia-aprobacion', range),
     request('/dashboard/tarimas-por-turno', range),
-    request('/dashboard/tarimas-por-dia-mes', {
-      anio: desde ? Number(desde.slice(0, 4)) : undefined,
-      mes: desde ? Number(desde.slice(5, 7)) : undefined,
-      cliente,
-      tipoProceso,
-    }),
+    request('/dashboard/tarimas-por-dia-mes', range),
     request('/dashboard/historico-mensual', range),
   ]).then((results) => {
     const [
       rechazosConDefectos,
       eficienciaOperadora,
-      tendenciaAprobacion,
       tarimasPorTurno,
       tarimasPorDiaMes,
       historicoMensual,
@@ -60,7 +53,6 @@ export function getDashboardAnalytics({ desde, hasta, cliente, tipoProceso } = {
     return {
       rechazosConDefectos,
       eficienciaOperadora,
-      tendenciaAprobacion,
       tarimasPorTurno,
       tarimasPorDiaMes,
       historicoMensual,
@@ -73,12 +65,8 @@ export function getDefectosFamilias({ desde, hasta, cliente, tipoProceso } = {})
   return request('/dashboard/defectos-familias', { desde, hasta, cliente, tipoProceso });
 }
 
-export function getTendenciaAprobacion({ desde, hasta, cliente, tipoProceso } = {}) {
-  return request('/dashboard/tendencia-aprobacion', { desde, hasta, cliente, tipoProceso });
-}
-
-export function getTarimasPorDiaMes({ anio, mes, cliente, tipoProceso } = {}) {
-  return request('/dashboard/tarimas-por-dia-mes', { anio, mes, cliente, tipoProceso });
+export function getTarimasPorDiaMes({ desde, hasta, cliente, tipoProceso } = {}) {
+  return request('/dashboard/tarimas-por-dia-mes', { desde, hasta, cliente, tipoProceso });
 }
 
 export function getResumenOrden(numeroOrden) {
@@ -99,6 +87,28 @@ export function getReporteEvidencias(id) {
 
 export function getDetalleInteractivo({ desde, hasta, cliente, tipoProceso } = {}) {
   return request('/dashboard/detalle-interactivo', { desde, hasta, cliente, tipoProceso });
+}
+
+export function postAuditoriaDefectos({ desde, hasta, familiaDefecto, cliente, familiaProducto } = {}) {
+  return request('/dashboard/auditoria-defectos', undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      desde,
+      hasta,
+      familiaDefecto,
+      cliente: cliente && cliente !== 'todos' ? cliente : null,
+      familiaProducto: familiaProducto || null,
+    }),
+  });
+}
+
+export function getAnalisisProductoCritico({ desde, hasta, cliente, tipoProceso } = {}) {
+  return request('/dashboard/analisis-producto-critico', { desde, hasta, cliente, tipoProceso });
+}
+
+export function getIncidenciasPorOperador({ desde, hasta } = {}) {
+  return request('/dashboard/incidencias-por-operador', { desde, hasta });
 }
 
 export function getFileUrl(path) {

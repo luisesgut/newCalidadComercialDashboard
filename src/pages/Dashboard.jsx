@@ -20,7 +20,11 @@ import { DashboardFilterProvider, useDashboardFilter } from '../context/Dashboar
 import { useDashboardInteractivo } from '../hooks/useDashboardInteractivo';
 import DashboardTour from '../components/DashboardTour';
 
-const COLORS_PIE = ['#0078D4', '#00B7C3', '#F2C812', '#8B5CF6', '#94A3B8'];
+const COLORS_PIE = [
+  '#0078D4', '#00B7C3', '#F2C812', '#8B5CF6',
+  '#107C10', '#A80000', '#E66C37', '#5C2D91',
+  '#038387', '#498205', '#CA5010', '#8764B8',
+];
 const today = new Date().toISOString().slice(0, 10);
 const defaultDesde = '2026-04-01';
 const EMPTY_ARRAY = [];
@@ -49,6 +53,41 @@ const pct = (value) => `${fmt(value, 1)}%`;
 const dateLabel = (value) => value ? new Date(value).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
 const monthLabel = (item) => item?.nombreMes ? `${item.nombreMes} ${item.anio}` : '';
 const fmtDate = (val) => val ? new Date(val).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const ESTATUS_DESVIACION = 'Desviaci\u00f3n';
+const ESTATUS_DESVIACION_LEGACY = Object.keys(ESTATUS_COLORS).find((key) => key.startsWith('Desviaci')) || ESTATUS_DESVIACION;
+const ESTATUS_VALIDACION = [
+  { key: 'Aprobada', label: 'Aprobadas', field: 'tarimasAprobadas', apiField: 'aprobadas', color: ESTATUS_COLORS.Aprobada },
+  { key: 'Con hallazgos', label: 'Con hallazgos', field: 'tarimasConHallazgos', apiField: 'conHallazgos', color: ESTATUS_COLORS['Con hallazgos'] },
+  { key: ESTATUS_DESVIACION, label: 'Desviadas', field: 'tarimasDesviadas', apiField: 'desviadas', color: ESTATUS_COLORS[ESTATUS_DESVIACION_LEGACY] },
+  { key: 'Rechazada', label: 'Rechazadas', field: 'tarimasRechazadas', apiField: 'rechazadas', color: ESTATUS_COLORS.Rechazada },
+];
+
+const normalizeEstatus = (estatus) => (
+  typeof estatus === 'string' && estatus.startsWith('Desviaci') ? ESTATUS_DESVIACION : estatus
+);
+
+function normalizeSemanaValidacion(semana = {}) {
+  const semanaNumero = Number(semana.semana || 0);
+  const semanaAnio = Number(semana.semanaAnio ?? semana.anio ?? 0);
+  return {
+    ...semana,
+    semana: semanaNumero,
+    semanaAnio,
+    semanaKey: `${semanaAnio || 'sin-anio'}-${semanaNumero}`,
+    etiqueta: `Sem. ${semanaNumero}`,
+    tarimasTotal: Number(semana.totalTarimas ?? semana.tarimasTotal ?? 0),
+    tarimasAprobadas: Number(semana.aprobadas ?? semana.tarimasAprobadas ?? 0),
+    tarimasConHallazgos: Number(semana.conHallazgos ?? semana.tarimasConHallazgos ?? 0),
+    tarimasDesviadas: Number(semana.desviadas ?? semana.tarimasDesviadas ?? 0),
+    tarimasRechazadas: Number(semana.rechazadas ?? semana.tarimasRechazadas ?? 0),
+    tasaAprobacionReal: Number(semana.porcentajeAprobacionReal ?? semana.tasaAprobacionReal ?? 0),
+    verificacionesCerradas: Number(semana.verificacionesCerradas ?? semana.totalTarimas ?? semana.tarimasTotal ?? 0),
+  };
+}
+
+const piezasAfectadasValue = (item = {}) => Number(
+  item.totalPiezasAfectadas ?? item.piezasAfectadas ?? item.totalFamilia ?? item.veces ?? 0,
+);
 
 function CardTitle({ title, sub, action }) {
   return (
@@ -116,6 +155,39 @@ function HelpIcon({ text, open, onToggle }) {
   );
 }
 
+function FamiliasTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload || {};
+  const defectos = (row.defectos || [])
+    .map((defecto) => ({
+      nombre: defecto.detalle || defecto.defecto || defecto.nombre || 'Sin detalle',
+      piezas: piezasAfectadasValue(defecto),
+    }))
+    .sort((a, b) => b.piezas - a.piezas);
+
+  return (
+    <div className="custom-tooltip">
+      <div className="label">{row.nombre}</div>
+      <div className="item">
+        <div className="dot" style={{ background: row.color }} />
+        <span>Cajas afectadas: <strong>{fmt(row.cantidad)}</strong></span>
+      </div>
+      <div className="item"><span>Impacto: <strong>{fmt(row.porcentaje, 1)}%</strong></span></div>
+      {defectos.length > 0 && (
+        <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
+          <div className="label" style={{ marginBottom: 0 }}>Subtipos</div>
+          {defectos.slice(0, 8).map((defecto) => (
+            <div key={defecto.nombre} className="item" style={{ justifyContent: 'space-between', gap: 12 }}>
+              <span>{defecto.nombre}</span>
+              <strong>{fmt(defecto.piezas)}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = today }) {
   const [tourActivo, setTourActivo] = useState(false);
   const [desde, setDesde] = useState(initialDesde);
@@ -137,6 +209,9 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
   const [tipoProceso, setTipoProceso] = useState('todos');
   const [defectosFamilias, setDefectosFamilias] = useState(EMPTY_ARRAY);
   const [tarimasDetalle, setTarimasDetalle] = useState(EMPTY_ARRAY);
+  const [semanasDesglose, setSemanasDesglose] = useState(EMPTY_ARRAY);
+  const [estatusSeleccionado, setEstatusSeleccionado] = useState(null);
+  const [mesActivoIndex, setMesActivoIndex] = useState(0);
   const { filtros, toggleFiltro, limpiarFiltros, hayFiltros } = useDashboardFilter();
   const interactivo = useDashboardInteractivo(tarimasDetalle, filtros);
 
@@ -217,12 +292,22 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
     console.log('Cargando detalle interactivo...', { desde, hasta, cliente, tipoProceso });
     getDetalleInteractivo({ desde, hasta, cliente, tipoProceso })
       .then((payload) => {
-        console.log('Detalle interactivo recibido:', payload?.length, 'tarimas');
-        if (!ignore) setTarimasDetalle(Array.isArray(payload) ? payload : EMPTY_ARRAY);
+        const tarimas = Array.isArray(payload) ? payload : payload?.tarimas;
+        const semanas = Array.isArray(payload?.semanasDesglose) ? payload.semanasDesglose : EMPTY_ARRAY;
+        console.log('Detalle interactivo recibido:', tarimas?.length || 0, 'tarimas', semanas.length, 'semanas');
+        if (!ignore) {
+          setTarimasDetalle(Array.isArray(tarimas) ? tarimas : EMPTY_ARRAY);
+          setSemanasDesglose(semanas);
+          setEstatusSeleccionado(null);
+        }
       })
       .catch((err) => {
         console.error('Error detalle interactivo:', err);
-        if (!ignore) setTarimasDetalle(EMPTY_ARRAY);
+        if (!ignore) {
+          setTarimasDetalle(EMPTY_ARRAY);
+          setSemanasDesglose(EMPTY_ARRAY);
+          setEstatusSeleccionado(null);
+        }
       });
     return () => { ignore = true; };
   }, [desde, hasta, cliente, tipoProceso]);
@@ -230,12 +315,40 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
   const historico = data?.historicoMensual?.meses || EMPTY_ARRAY;
   const ultimoMes = historico[historico.length - 1] || EMPTY_OBJECT;
   const rechazos = data?.rechazosConDefectos || EMPTY_OBJECT;
-  const tendencia = data?.tendenciaAprobacion || EMPTY_OBJECT;
   const turno = data?.tarimasPorTurno || EMPTY_OBJECT;
-  const diaMes = data?.tarimasPorDiaMes || EMPTY_OBJECT;
+  const diaMeses = Array.isArray(data?.tarimasPorDiaMes)
+    ? data.tarimasPorDiaMes
+    : data?.tarimasPorDiaMes
+      ? [data.tarimasPorDiaMes]
+      : EMPTY_ARRAY;
+  const mesActivoSeguro = Math.min(mesActivoIndex, Math.max(diaMeses.length - 1, 0));
+  const diaMes = diaMeses[mesActivoSeguro] || EMPTY_OBJECT;
   const promedioDiarioMes = diaMes.promedioDiario ?? diaMes.promediodiariO ?? 0;
   const eficiencia = data?.eficienciaOperadora?.operadoras || EMPTY_ARRAY;
-  const tasaAprobacionReal = ultimoMes.tasaAprobacionReal ?? tendencia.promedioGeneral;
+
+  const semanas = useMemo(() => (
+    semanasDesglose.map(normalizeSemanaValidacion)
+  ), [semanasDesglose]);
+
+  const tendenciaTarimas = useMemo(() => semanas.reduce((acc, semana) => ({
+    total: acc.total + Number(semana.tarimasTotal || 0),
+    aprobadas: acc.aprobadas + Number(semana.tarimasAprobadas || 0),
+    conHallazgos: acc.conHallazgos + Number(semana.tarimasConHallazgos || 0),
+    desviadas: acc.desviadas + Number(semana.tarimasDesviadas || 0),
+    rechazadas: acc.rechazadas + Number(semana.tarimasRechazadas || 0),
+    verificaciones: acc.verificaciones + Number(semana.verificacionesCerradas || 0),
+    cajas: acc.cajas + Number(semana.cajasRevisadas || 0),
+  }), {
+    total: 0,
+    aprobadas: 0,
+    conHallazgos: 0,
+    desviadas: 0,
+    rechazadas: 0,
+    verificaciones: 0,
+    cajas: 0,
+  }), [semanas]);
+
+  const tasaAprobacionReal = ultimoMes.tasaAprobacionReal ?? semanas[semanas.length - 1]?.tasaAprobacionReal ?? 0;
   const tasaAprobacionColor = tasaAprobacionReal >= 80
     ? '#107C10'
     : tasaAprobacionReal >= 60
@@ -287,7 +400,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
       {
         label: 'Tasa aprobación',
         value: pct(tasaAprobacionReal),
-        sub: `Tendencia: ${tendencia.tendencia || 'Sin datos'}`,
+        sub: 'Detalle interactivo',
         icon: TrendingUp,
         accent: tasaAprobacionColor,
         color: tasaAprobacionColor,
@@ -295,12 +408,12 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
       {
         label: 'Cajas revisadas',
         value: fmt(ultimoMes.cajasRevisadas || totalCajasOperadoras),
-        sub: `${fmt(ultimoMes.verificacionesCerradas)} verificaciones cerradas`,
+        sub: `${fmt(ultimoMes.verificacionesCerradas)} ordenes revisadas y cerradas`,
         icon: CheckSquare,
         accent: '#00B7C3',
       },
     ];
-  }, [accent, eficiencia, hayFiltros, interactivo, rechazos, tasaAprobacionColor, tasaAprobacionReal, tendencia, ultimoMes]);
+  }, [accent, eficiencia, hayFiltros, interactivo, rechazos, tasaAprobacionColor, tasaAprobacionReal, ultimoMes]);
 
   const paretoConfig = paretoMode === 'piezas'
     ? {
@@ -318,7 +431,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
     const rows = defectosFamilias
       .flatMap((familia) => (familia.defectos || []).map((d) => {
         const veces = Number(d.veces || 0);
-        const piezasAfectadas = Number(d.piezasAfectadas || 0);
+        const piezasAfectadas = piezasAfectadasValue(d);
         return {
           defecto: d.detalle,
           familia: familia.familia,
@@ -341,48 +454,21 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
   }, [defectosFamilias, paretoMode]);
 
   const defectosFamilia = useMemo(() => (
-    defectosFamilias.slice(0, 5).map((item, index) => ({
+    defectosFamilias.slice(0, 8).map((item, index) => ({
       nombre: item.familia,
-      cantidad: item.totalFamilia,
+      cantidad: piezasAfectadasValue(item),
       porcentaje: item.porcentajeFamilia,
+      defectos: (item.defectos || [])
+        .map((defecto) => ({
+          ...defecto,
+          piezasAfectadas: piezasAfectadasValue(defecto),
+        }))
+        .sort((a, b) => b.piezasAfectadas - a.piezasAfectadas),
       color: COLORS_PIE[index % COLORS_PIE.length],
     }))
   ), [defectosFamilias]);
 
-  const defectosFamiliaInteractivo = useMemo(() => {
-    if (!interactivo.porFamilia.length) return defectosFamilia;
-    const total = interactivo.porFamilia.reduce((s, f) => s + f.veces, 0) || 1;
-    return interactivo.porFamilia.slice(0, 5).map((item, index) => ({
-      nombre: item.familia,
-      cantidad: item.veces,
-      porcentaje: Math.round((item.veces / total) * 1000) / 10,
-      color: COLORS_PIE[index % COLORS_PIE.length],
-    }));
-  }, [interactivo.porFamilia, defectosFamilia]);
-
-  const semanas = (tendencia.semanas || []).map((semana) => ({
-    ...semana,
-    etiqueta: `Sem. ${semana.semana}`,
-    rango: `${fmtDate(semana.inicioSemana)} - ${fmtDate(semana.finSemana)}`,
-  }));
-
-  const tendenciaTarimas = useMemo(() => semanas.reduce((acc, semana) => ({
-    total: acc.total + Number(semana.tarimasTotal || 0),
-    aprobadas: acc.aprobadas + Number(semana.tarimasAprobadas || 0),
-    conHallazgos: acc.conHallazgos + Number(semana.tarimasConHallazgos || 0),
-    desviadas: acc.desviadas + Number(semana.tarimasDesviadas || 0),
-    rechazadas: acc.rechazadas + Number(semana.tarimasRechazadas || 0),
-    verificaciones: acc.verificaciones + Number(semana.verificacionesCerradas || 0),
-    cajas: acc.cajas + Number(semana.cajasRevisadas || 0),
-  }), {
-    total: 0,
-    aprobadas: 0,
-    conHallazgos: 0,
-    desviadas: 0,
-    rechazadas: 0,
-    verificaciones: 0,
-    cajas: 0,
-  }), [semanas]);
+  const defectosFamiliaInteractivo = defectosFamilia;
 
   const tarimasDia = (turno.porDia || []).map((item) => ({
     ...item,
@@ -476,14 +562,54 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
 
   const usaFiltroInteractivo = hayFiltros && interactivo.datos.length > 0;
 
-  const statsValidacion = usaFiltroInteractivo ? {
-    total: interactivo.datos.length,
-    aprobadas: interactivo.porEstatus['Aprobada'] || 0,
-    conHallazgos: interactivo.porEstatus['Con hallazgos'] || 0,
-    desviadas: interactivo.porEstatus['Desviación'] || 0,
-    rechazadas: interactivo.porEstatus['Rechazada'] || 0,
-    verificaciones: interactivo.verificaciones,
-  } : {
+  const estatusConfigSeleccionado = ESTATUS_VALIDACION.find((item) => item.key === estatusSeleccionado);
+
+  const toggleEstatusValidacion = (estatus) => {
+    setEstatusSeleccionado((actual) => (actual === estatus ? null : estatus));
+  };
+
+  const semanasValidacionVista = useMemo(() => {
+    if (!estatusConfigSeleccionado) return semanas;
+
+    const porSemana = new Map(semanas.map((semana) => [
+      semana.semanaKey,
+      {
+        ...semana,
+        tarimasTotal: 0,
+        tarimasAprobadas: 0,
+        tarimasConHallazgos: 0,
+        tarimasDesviadas: 0,
+        tarimasRechazadas: 0,
+        verificacionesCerradas: 0,
+      },
+    ]));
+
+    tarimasDetalle.forEach((tarima) => {
+      if (normalizeEstatus(tarima.estatus) !== estatusSeleccionado) return;
+
+      const semanaNumero = Number(tarima.semana || 0);
+      const semanaAnio = Number(tarima.semanaAnio ?? tarima.anio ?? 0);
+      const semanaKey = `${semanaAnio || 'sin-anio'}-${semanaNumero}`;
+      const current = porSemana.get(semanaKey) || normalizeSemanaValidacion({
+        semanaAnio,
+        semana: semanaNumero,
+        totalTarimas: 0,
+        porcentajeAprobacionReal: 0,
+      });
+
+      porSemana.set(semanaKey, {
+        ...current,
+        tarimasTotal: current.tarimasTotal + 1,
+        [estatusConfigSeleccionado.field]: current[estatusConfigSeleccionado.field] + 1,
+        verificacionesCerradas: current.verificacionesCerradas + 1,
+      });
+    });
+
+    return Array.from(porSemana.values())
+      .sort((a, b) => (a.semanaAnio - b.semanaAnio) || (a.semana - b.semana));
+  }, [estatusConfigSeleccionado, estatusSeleccionado, semanas, tarimasDetalle]);
+
+  const statsValidacionBase = {
     total: tendenciaTarimas.total,
     aprobadas: tendenciaTarimas.aprobadas,
     conHallazgos: tendenciaTarimas.conHallazgos,
@@ -492,10 +618,6 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
     verificaciones: tendenciaTarimas.verificaciones,
   };
 
-  const semanasVista = usaFiltroInteractivo && interactivo.porSemana.length
-    ? interactivo.porSemana
-    : semanas;
-
   const tarimasDiaVista = usaFiltroInteractivo && interactivo.porDiaTurno.length
     ? interactivo.porDiaTurno.map((item) => ({ ...item, dia: dateLabel(item.fecha) }))
     : tarimasDia;
@@ -503,6 +625,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
   const resumenTurnoVista = usaFiltroInteractivo
     ? interactivo.resumenTurno
     : [turno.resumenMatutino, turno.resumenVespertino].filter(Boolean);
+  const usaVistaTurnoPorOperador = usaFiltroInteractivo && Boolean(filtros.operador);
 
   return (
     <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -519,6 +642,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
             value={desde}
             onChange={(event) => {
               setLoading(true);
+              setMesActivoIndex(0);
               setDesde(event.target.value);
             }}
             style={{ width: 140 }}
@@ -532,6 +656,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
             value={hasta}
             onChange={(event) => {
               setLoading(true);
+              setMesActivoIndex(0);
               setHasta(event.target.value);
             }}
             style={{ width: 140 }}
@@ -544,6 +669,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
             value={cliente}
             onChange={(event) => {
               setLoading(true);
+              setMesActivoIndex(0);
               setCliente(event.target.value);
             }}
             style={{ minWidth: 160 }}
@@ -561,6 +687,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
             value={tipoProceso}
             onChange={(event) => {
               setLoading(true);
+              setMesActivoIndex(0);
               setTipoProceso(event.target.value);
             }}
             style={{ minWidth: 120 }}
@@ -659,14 +786,23 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginBottom: 8 }}>
                 {[
-                  ['Tarimas validadas', fmt(statsValidacion.total)],
-                  ['Aprobadas', fmt(statsValidacion.aprobadas), ESTATUS_COLORS.Aprobada],
-                  ['Con hallazgos', fmt(statsValidacion.conHallazgos), ESTATUS_COLORS['Con hallazgos']],
-                  ['Desviadas', fmt(statsValidacion.desviadas), ESTATUS_COLORS['Desviación']],
-                  ['Rechazadas', fmt(statsValidacion.rechazadas), ESTATUS_COLORS.Rechazada],
-                  ['Verificaciones', fmt(statsValidacion.verificaciones)],
-                ].map(([label, value, color]) => (
-                  <div key={label} style={{ background: '#F3F2F1', borderRadius: 4, padding: '7px 8px' }}>
+                  ['Tarimas validadas', fmt(statsValidacionBase.total), undefined, null],
+                  ['Aprobadas', fmt(statsValidacionBase.aprobadas), ESTATUS_COLORS.Aprobada, 'Aprobada'],
+                  ['Con hallazgos', fmt(statsValidacionBase.conHallazgos), ESTATUS_COLORS['Con hallazgos'], 'Con hallazgos'],
+                  ['Desviadas', fmt(statsValidacionBase.desviadas), ESTATUS_COLORS[ESTATUS_DESVIACION_LEGACY], ESTATUS_DESVIACION],
+                  ['Rechazadas', fmt(statsValidacionBase.rechazadas), ESTATUS_COLORS.Rechazada, 'Rechazada'],
+                ].map(([label, value, color, estatus]) => (
+                  <div
+                    key={label}
+                    onClick={estatus ? () => toggleEstatusValidacion(estatus) : undefined}
+                    style={{
+                      background: estatus && estatusSeleccionado === estatus ? '#DBEAFE' : '#F3F2F1',
+                      border: estatus && estatusSeleccionado === estatus ? '1px solid #93C5FD' : '1px solid transparent',
+                      borderRadius: 4,
+                      padding: '7px 8px',
+                      cursor: estatus ? 'pointer' : 'default',
+                    }}
+                  >
                     <div style={{ fontSize: 9, color: '#605E5C' }}>{label}</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: color || '#252423' }}>{value}</div>
                   </div>
@@ -674,7 +810,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
               </div>
 
               <ResponsiveContainer width="100%" height={190}>
-                <ComposedChart data={semanasVista} margin={{ top: 4, right: 0, left: -12, bottom: 0 }}>
+                <ComposedChart data={semanasValidacionVista} margin={{ top: 4, right: 0, left: -12, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" vertical={false} />
                   <XAxis dataKey="etiqueta" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis yAxisId="tarimas" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -688,12 +824,19 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
                 </ComposedChart>
               </ResponsiveContainer>
 
-              <div style={{ display: 'grid', gap: 5, marginTop: 8 }}>
-                {semanasVista.slice(-4).map((semana) => (
-                  <div key={semana.semana} style={{ display: 'grid', gridTemplateColumns: '52px 1fr auto', gap: 8, alignItems: 'center', fontSize: 10 }}>
+              <div style={{
+                display: 'grid',
+                gap: 5,
+                marginTop: 8,
+                maxHeight: semanas.length >= 3 ? 82 : 'none',
+                overflowY: semanas.length >= 3 ? 'auto' : 'visible',
+                paddingRight: semanas.length >= 3 ? 4 : 0,
+              }}>
+                {semanas.map((semana) => (
+                  <div key={semana.semanaKey} style={{ display: 'grid', gridTemplateColumns: '52px 1fr auto', gap: 8, alignItems: 'center', fontSize: 10 }}>
                     <strong style={{ color: '#252423' }}>Sem. {semana.semana}</strong>
                     <span style={{ color: '#605E5C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {fmt(semana.tarimasTotal)} tarimas · {fmt(semana.tarimasAprobadas)} aprobadas · {fmt(semana.tarimasConHallazgos)} con hallazgos · {fmt(semana.tarimasRechazadas)} rechazadas
+                      {fmt(semana.tarimasTotal)} tarimas · {fmt(semana.tarimasAprobadas)} aprobadas · {fmt(semana.tarimasConHallazgos)} con hallazgos · {fmt(semana.tarimasDesviadas)} desviadas · {fmt(semana.tarimasRechazadas)} rechazadas
                     </span>
                     <strong style={{ color: '#107C10' }}>{pct(semana.tasaAprobacionReal)}</strong>
                   </div>
@@ -711,7 +854,27 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
             sub="Matutino vs vespertino por día"
             action={<HelpIcon text="Ayuda a comparar cuántas tarimas se trabajan por día en turno matutino y vespertino para detectar carga operativa por turno." open={openHelp === 'turno'} onToggle={() => setOpenHelp(openHelp === 'turno' ? '' : 'turno')} />}
           />
-          {tarimasDiaVista.length ? (
+          {usaVistaTurnoPorOperador ? (
+            <ResponsiveContainer width="100%" height={210}>
+              <BarChart data={resumenTurnoVista} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}
+                        onClick={(chartData) => { if (chartData?.activePayload) toggleFiltro('turno', chartData.activePayload[0]?.payload?.turno); }}
+                        style={{ cursor: 'pointer' }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" vertical={false} />
+                <XAxis dataKey="turno" tick={{ fill: '#605E5C', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="totalTarimas" name="Tarimas" radius={[3, 3, 0, 0]} barSize={42}>
+                  {resumenTurnoVista.map((item) => (
+                    <Cell
+                      key={item.turno}
+                      fill={item.turno === 'Matutino' ? '#22C55E' : '#3B82F6'}
+                      opacity={!filtros.turno || filtros.turno === item.turno ? 1 : 0.3}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : tarimasDiaVista.length ? (
             <ResponsiveContainer width="100%" height={210}>
               <BarChart data={tarimasDiaVista} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}
                         onClick={(chartData) => { if (chartData?.activePayload) toggleFiltro('turno', chartData.activePayload[0]?.name === 'Matutino' ? 'Matutino' : 'Vespertino'); }}
@@ -797,7 +960,7 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
                               strokeWidth={filtros.familiaDefecto === item.nombre ? 3 : 2} />
                       ))}
                     </Pie>
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<FamiliasTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -880,6 +1043,29 @@ function DashboardInner({ accent, initialDesde = defaultDesde, initialHasta = to
             sub={diaMes.nombreMes ? `${diaMes.nombreMes} ${diaMes.anio} · aprobadas, hallazgos, desviadas y rechazadas` : 'Mes seleccionado'}
             action={<HelpIcon text="Muestra la actividad diaria del mes seleccionado y separa las tarimas por estatus. Sirve para detectar días pico, días sin actividad y concentración de hallazgos o rechazos." open={openHelp === 'diaMes'} onToggle={() => setOpenHelp(openHelp === 'diaMes' ? '' : 'diaMes')} />}
           />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: -4, marginBottom: 8 }}>
+              <button
+                type="button"
+                className="filter-btn"
+                onClick={() => setMesActivoIndex((index) => Math.max(index - 1, 0))}
+                disabled={mesActivoSeguro <= 0}
+                style={{ padding: '3px 8px', minWidth: 26 }}
+              >
+                &lt;
+              </button>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#605E5C', minWidth: 96, textAlign: 'center' }}>
+                {diaMes.nombreMes ? `${diaMes.nombreMes} ${diaMes.anio}` : '-'}
+              </span>
+              <button
+                type="button"
+                className="filter-btn"
+                onClick={() => setMesActivoIndex((index) => Math.min(index + 1, Math.max(diaMeses.length - 1, 0)))}
+                disabled={mesActivoSeguro >= diaMeses.length - 1}
+                style={{ padding: '3px 8px', minWidth: 26 }}
+              >
+                &gt;
+              </button>
+          </div>
           {(diaMes.dias || []).length ? (
             <>
               <ResponsiveContainer width="100%" height={174}>
