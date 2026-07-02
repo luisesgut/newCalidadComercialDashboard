@@ -125,8 +125,15 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
     return () => { ignore = true; };
   }, [desde, hasta, cliente, tipoProceso]);
 
+  const eficiencia = data?.eficienciaOperadora?.operadoras || EMPTY_ARRAY;
   const turno = data?.tarimasPorTurno || EMPTY_OBJECT;
   const usaFiltroInteractivo = hayFiltros && interactivo.datos.length > 0;
+
+  const datosEficiencia = useMemo(() => (
+    interactivo.porOperador.length
+      ? interactivo.porOperador
+      : eficiencia.map((item) => ({ operador: item.usuario, total: item.totalCajas }))
+  ), [eficiencia, interactivo.porOperador]);
 
   const reporteOperadores = useMemo(() => (
     (Array.isArray(operadores?.reporteOperadores) ? operadores.reporteOperadores : EMPTY_ARRAY)
@@ -168,6 +175,9 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
     ? interactivo.resumenTurno
     : [turno.resumenMatutino, turno.resumenVespertino].filter(Boolean);
   const usaVistaTurnoPorOperador = usaFiltroInteractivo && Boolean(filtros.operador);
+
+  const barColor = (valor, seleccionado) =>
+    !seleccionado || seleccionado === valor ? undefined : '#B4B2A9';
 
   return (
     <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -230,7 +240,29 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.45fr 1fr', gap: 10 }}>
+        <div className="card" style={{ padding: '12px 14px' }}>
+          <CardTitle title="Eficiencia operador" sub="Tarimas creadas" />
+          {datosEficiencia.length ? (
+            <ResponsiveContainer width="100%" height={Math.max(260, datosEficiencia.length * 36)}>
+              <BarChart data={datosEficiencia} layout="vertical" margin={{ top: 4, right: 42, left: 136, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F2F1" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#A19F9D', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="operador" width={132} tick={{ fill: '#605E5C', fontSize: 9 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="total" name="Tarimas" radius={[0, 3, 3, 0]} barSize={22}
+                     onClick={(row) => toggleFiltro('operador', row.operador)}
+                     cursor="pointer">
+                  {datosEficiencia.map((item) => (
+                    <Cell key={item.operador} fill={barColor(item.operador, filtros.operador) ?? '#0078D4'} />
+                  ))}
+                  <LabelList dataKey="total" position="right" formatter={labelIfValue} style={{ fill: '#252423', fontSize: 11, fontWeight: 800 }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <EmptyState />}
+        </div>
+
         <div className="card" style={{ padding: '12px 14px' }}>
           <CardTitle title="Tarimas por turno" sub="Matutino vs vespertino por dia" />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: -4, marginBottom: 6, fontSize: 10, color: '#605E5C', fontWeight: 700 }}>

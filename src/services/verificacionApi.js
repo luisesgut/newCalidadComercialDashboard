@@ -130,7 +130,7 @@ export function getAnalisisProductoCritico({ desde, hasta, cliente, tipoProceso 
 }
 
 export function getIncidenciasPorOperador({ desde, hasta } = {}) {
-  return request('/dashboard/incidencias-operador', { desde, hasta });
+  return request('/dashboard-analisis/incidencias-operador', { desde, hasta });
 }
 
 export function getFileUrl(path) {
