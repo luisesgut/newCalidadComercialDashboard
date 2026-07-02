@@ -4,9 +4,9 @@ import Sidebar       from './components/Sidebar';
 import Header        from './components/Header';
 import MaintenanceScreen from './components/MaintenanceScreen';
 import Dashboard     from './pages/Dashboard';
+import EficienciaOperador from './pages/EficienciaOperador';
 import { DashboardFilterProvider } from './context/DashboardFilterContext';
 import Verificaciones from './pages/Verificaciones';
-import Hallazgos     from './pages/Hallazgos';
 import AuditoriaDefectos from './pages/AuditoriaDefectos';
 import AnalisisProducto from './pages/AnalisisProducto';
 import Reportes      from './pages/Reportes';
@@ -14,6 +14,7 @@ import Configuracion from './pages/Configuracion';
 import { MAINTENANCE_MODE } from './middleware/maintenanceMode';
 
 const fmtDate = (date) => date.toISOString().slice(0, 10);
+const MIN_DASHBOARD_DATE = '2026-07-01';
 
 function getPeriodRange(period) {
   const today = new Date();
@@ -23,30 +24,23 @@ function getPeriodRange(period) {
     return { desde: end, hasta: end };
   }
 
-  if (period === 'Semana') {
-    const start = new Date(today);
-    const day = start.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    start.setDate(start.getDate() - diff);
-    return { desde: fmtDate(start), hasta: end };
-  }
-
   const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  return { desde: fmtDate(start), hasta: end };
+  const desde = fmtDate(start);
+  return { desde: desde < MIN_DASHBOARD_DATE ? MIN_DASHBOARD_DATE : desde, hasta: end };
 }
 
 function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activePage,       setActivePage]       = useState('dashboard');
   const [period,           setPeriod]           = useState('Mes');
-  const [accent,           setAccent]           = useState('#0078D4');
-  const [sidebarColor,     setSidebarColor]     = useState('#252423');
+  const [accent,           setAccent]           = useState('#26575B');
+  const [sidebarColor,     setSidebarColor]     = useState('#1D3D3A');
   const range = getPeriodRange(period);
 
   const PAGE = {
     dashboard:      <DashboardFilterProvider key={`dashboard-${period}`}><Dashboard accent={accent} initialDesde={range.desde} initialHasta={range.hasta} /></DashboardFilterProvider>,
+    eficienciaOperador: <EficienciaOperador key={`eficiencia-operador-${period}`} accent={accent} initialDesde={range.desde} initialHasta={range.hasta} />,
     verificaciones: <Verificaciones accent={accent} />,
-    hallazgos:      <Hallazgos      accent={accent} />,
     auditoria:      <AuditoriaDefectos accent={accent} />,
     analisisProducto: <AnalisisProducto accent={accent} />,
     reportes:       <Reportes       accent={accent} />,
@@ -54,7 +48,7 @@ function AppShell() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="app-shell" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(c => !c)}
@@ -64,7 +58,7 @@ function AppShell() {
         bg={sidebarColor}
       />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="app-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Power BI top bar */}
         <div
           className="pbi-header"

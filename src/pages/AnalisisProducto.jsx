@@ -132,8 +132,7 @@ export default function AnalisisProducto({ accent }) {
           Lectura de producto critico
         </div>
         <div style={{ fontSize: 12, color: '#1E3A8A', lineHeight: 1.55 }}>
-          Aqui se visualizan, por rango de tiempo, los productos con mas fallas y su desglose de incidencias. Puedes filtrar por tipo de producto <strong>BOLSEO</strong> o <strong>POUCH</strong> para enfocar el analisis.
-        </div>
+Aqui se visualizan los productos con mas incidencias de calidad, calculadas a nivel de caja individual y piezas afectadas. Puedes filtrar por tipo de producto <strong>BOLSEO</strong> o <strong>POUCH</strong> para enfocar el analisis.        </div>
       </div>
 
       {loading ? (
@@ -144,7 +143,7 @@ export default function AnalisisProducto({ accent }) {
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
             <MetricCard label="Total de productos con fallos" value={fmt(resumen.totalProductosAfectadosEnPeriodo)} icon={Package} color={accent} />
-            <MetricCard label="Total general de piezas mermadas" value={fmt(resumen.totalPiezasDefectuosasPeriodo)} icon={AlertTriangle} color="#A80000" />
+            <MetricCard label="TOTAL GENERAL DE PIEZAS CON ALGUN DEFECTO ENCONTRADO" value={fmt(resumen.totalPiezasDefectuosasPeriodo)} icon={AlertTriangle} color="#A80000" />
           </div>
 
           <div className="card" style={{ padding: '12px 14px' }}>

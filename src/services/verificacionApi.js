@@ -61,12 +61,34 @@ export function getDashboardAnalytics({ desde, hasta, cliente, tipoProceso } = {
   });
 }
 
-export function getDefectosFamilias({ desde, hasta, cliente, tipoProceso } = {}) {
-  return request('/dashboard/defectos-familias', { desde, hasta, cliente, tipoProceso });
+export function getDefectosFamilias({ desde, hasta, cliente, tipoProceso, estatusTarima } = {}) {
+  return request('/dashboard/defectos-familias', { desde, hasta, cliente, tipoProceso, estatusTarima });
+}
+
+export function getParetoDefectos({ desde, hasta, cliente, tipoProceso, familia, estatusTarima } = {}) {
+  return request('/dashboard/pareto-defectos', { desde, hasta, cliente, tipoProceso, familia, estatusTarima });
 }
 
 export function getTarimasPorDiaMes({ desde, hasta, cliente, tipoProceso } = {}) {
   return request('/dashboard/tarimas-por-dia-mes', { desde, hasta, cliente, tipoProceso });
+}
+
+export function getHistoricoMensual({ desde, hasta, cliente, tipoProceso } = {}) {
+  return request('/dashboard/historico-mensual', { desde, hasta, cliente, tipoProceso });
+}
+
+export function getKpisGlobales({ desde, hasta, cliente, tipoProceso } = {}) {
+  return request('/dashboard/kpis-globales', { desde, hasta, cliente, tipoProceso });
+}
+
+export function getTarimasAnalisis(estatus, { desde, hasta, cliente, tipoProceso, familia } = {}) {
+  return request(`/dashboard/tarimas-analisis/${encodeURIComponent(estatus)}`, {
+    desde,
+    hasta,
+    cliente,
+    tipoProceso,
+    familia,
+  });
 }
 
 export function getResumenOrden(numeroOrden) {
@@ -96,7 +118,7 @@ export function postAuditoriaDefectos({ desde, hasta, familiaDefecto, cliente, f
     body: JSON.stringify({
       desde,
       hasta,
-      familiaDefecto,
+      familiaDefecto: familiaDefecto || null,
       cliente: cliente && cliente !== 'todos' ? cliente : null,
       familiaProducto: familiaProducto || null,
     }),
@@ -108,7 +130,7 @@ export function getAnalisisProductoCritico({ desde, hasta, cliente, tipoProceso 
 }
 
 export function getIncidenciasPorOperador({ desde, hasta } = {}) {
-  return request('/dashboard/incidencias-por-operador', { desde, hasta });
+  return request('/dashboard/incidencias-operador', { desde, hasta });
 }
 
 export function getFileUrl(path) {

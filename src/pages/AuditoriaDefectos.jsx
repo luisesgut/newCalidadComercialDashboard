@@ -43,7 +43,7 @@ function BadgeEstatus({ value }) {
 export default function AuditoriaDefectos({ accent }) {
   const [desde, setDesde] = useState(defaultDesde);
   const [hasta, setHasta] = useState(today);
-  const [familiaDefecto, setFamiliaDefecto] = useState('Temas de impresi\u00f3n');
+  const [familiaDefecto, setFamiliaDefecto] = useState('');
   const [cliente, setCliente] = useState('todos');
   const [familiaProducto, setFamiliaProducto] = useState('');
   const [familiasDefecto, setFamiliasDefecto] = useState(EMPTY_ARRAY);
@@ -78,11 +78,7 @@ export default function AuditoriaDefectos({ accent }) {
           .filter(Boolean);
 
         setFamiliasDefecto(familias);
-        setFamiliaDefecto((actual) => {
-          if (!familias.length || familias.includes(actual)) return actual;
-          setLoading(true);
-          return familias[0];
-        });
+        setFamiliaDefecto((actual) => (actual && !familias.includes(actual) ? '' : actual));
       })
       .catch(() => {
         if (!ignore) setFamiliasDefecto(EMPTY_ARRAY);
@@ -121,7 +117,7 @@ export default function AuditoriaDefectos({ accent }) {
   const kpis = useMemo(() => ([
     { label: 'Tarimas afectadas', value: fmt(resumen.totalTarimasAfectadas), icon: Layers, accent },
     { label: 'Tarimas rechazadas', value: fmt(resumen.tarimasRechazadas), icon: PackageX, accent: '#A80000', color: '#A80000' },
-    { label: 'Con hallazgos', value: fmt(resumen.tarimasConHallazgos), icon: AlertTriangle, accent: '#D29200', color: '#D29200' },
+    { label: 'Tarimas desviadas', value: fmt(resumen.tarimasDesviadas), icon: AlertTriangle, accent: '#D29200', color: '#D29200' },
     { label: 'Cajas afectadas', value: fmt(resumen.totalCajasAfectadas), icon: Boxes, accent: '#00B7C3' },
     { label: 'Piezas afectadas', value: fmt(resumen.totalPiezasAfectadas), icon: CheckSquare, accent },
   ]), [accent, resumen]);
@@ -146,13 +142,14 @@ export default function AuditoriaDefectos({ accent }) {
             className="pbi-select"
             value={familiaDefecto}
             onChange={(event) => { setLoading(true); setFamiliaDefecto(event.target.value); }}
-            disabled={loadingFamilias || !familiasDefecto.length}
+            disabled={loadingFamilias}
             style={{ minWidth: 210 }}
           >
+            <option value="">Todas</option>
             {familiasDefecto.length ? (
               familiasDefecto.map((item) => <option key={item} value={item}>{item}</option>)
             ) : (
-              <option value={familiaDefecto}>{loadingFamilias ? 'Cargando familias...' : 'Sin familias'}</option>
+              <option value="" disabled>{loadingFamilias ? 'Cargando familias...' : 'Sin familias'}</option>
             )}
           </select>
         </label>
@@ -192,7 +189,7 @@ export default function AuditoriaDefectos({ accent }) {
             <div style={{ fontSize: 12, fontWeight: 800, color: '#1D4ED8' }}>Lectura de auditoria</div>
           </div>
           <div style={{ fontSize: 12, color: '#1E3A8A', lineHeight: 1.55 }}>
-            Esta vista muestra únicamente las tarimas <strong>rechazadas</strong> y <strong>con hallazgos</strong>. Al desplegar una tarima, se presenta el informe de las cajas individuales asociadas para auditar el detalle del defecto.
+            Esta vista muestra únicamente las tarimas <strong>rechazadas</strong> y <strong>desviadas</strong>. Al desplegar una tarima, se presenta el informe de las cajas individuales asociadas para auditar el detalle del defecto.
           </div>
         </div>
       </div>
@@ -274,7 +271,7 @@ export default function AuditoriaDefectos({ accent }) {
                                       <th>Error puntual</th>
                                       <th>Piezas caja</th>
                                       <th>Fecha escaneo</th>
-                                      <th>Operadora</th>
+                                      <th>Operador</th>
                                     </tr>
                                   </thead>
                                   <tbody>

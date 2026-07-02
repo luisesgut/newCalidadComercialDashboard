@@ -1,19 +1,19 @@
 import {
-  LayoutDashboard, CheckSquare, AlertTriangle,
-  BarChart2, Settings, ChevronLeft, ChevronRight, SearchCheck, PackageSearch
+  LayoutDashboard, CheckSquare,
+  BarChart2, Settings, ChevronLeft, ChevronRight, SearchCheck, PackageSearch, Users
 } from 'lucide-react';
 
 const ITEMS = [
   { id: "dashboard",       label: "Dashboard",      Icon: LayoutDashboard },
+  { id: "eficienciaOperador", label: "Eficiencia operador", Icon: Users },
   { id: "verificaciones",  label: "Verificaciones", Icon: CheckSquare },
-  { id: "hallazgos",       label: "Hallazgos",      Icon: AlertTriangle },
   { id: "auditoria",       label: "Auditoría",      Icon: SearchCheck },
   { id: "analisisProducto", label: "Producto critico", Icon: PackageSearch },
   { id: "reportes",        label: "Reportes",       Icon: BarChart2 },
   { id: "configuracion",   label: "Configuración",  Icon: Settings },
 ];
 
-export default function Sidebar({ collapsed, onToggle, activePage, onNav, accent, bg }) {
+export default function Sidebar({ collapsed, onToggle, activePage, onNav, accent = '#26575B', bg = '#1D3D3A' }) {
   return (
     <aside
       className={`sidebar ${collapsed ? 'collapsed' : 'expanded'}`}
@@ -38,7 +38,7 @@ export default function Sidebar({ collapsed, onToggle, activePage, onNav, accent
         )}
         <button
           onClick={onToggle}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A19F9D', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9DC8D1', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
@@ -64,7 +64,7 @@ export default function Sidebar({ collapsed, onToggle, activePage, onNav, accent
               }}
               onClick={() => onNav(id)}
             >
-              <Icon size={15} color={isActive ? '#fff' : '#C8C6C4'} />
+              <Icon size={15} color={isActive ? '#fff' : '#9DC8D1'} />
               {!collapsed && <span>{label}</span>}
             </div>
           );
