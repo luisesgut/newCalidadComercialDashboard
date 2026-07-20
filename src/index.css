@@ -1,32 +1,32 @@
 :root {
   /* Marca / verdes Bioflex */
-  --bx-green-900: #1D3D3A;
-  --bx-teal-700: #26575B;
-  --bx-teal-500: #70949C;
-  --bx-teal-200: #9DC8D1;
+  --bx-green-900: #153E3E;
+  --bx-teal-700: #153E3E;
+  --bx-teal-500: #85B6C4;
+  --bx-teal-200: #C7DEE4;
 
   /* Azules (KPIs + grafica) */
-  --bx-navy: #2C5992;
-  --bx-blue-real: #265897;
-  --bx-blue-bright: #577CEF;
+  --bx-navy: #153E3E;
+  --bx-blue-real: #85B6C4;
+  --bx-blue-bright: #5F99AA;
 
   /* Verdes de estado / success */
-  --bx-success: #5CBC75;
-  --bx-mint: #B9EBC6;
+  --bx-success: #5F99AA;
+  --bx-mint: #DCECEF;
 
   /* Acentos calidos */
-  --bx-orange: #DC6E33;
-  --bx-amber: #EDB953;
-  --bx-yellow: #F1C870;
-  --bx-olive-green: #537F5E;
+  --bx-orange: #D06430;
+  --bx-amber: #E2A343;
+  --bx-yellow: #F0C979;
+  --bx-olive-green: #668D8D;
 
   /* Neutros / fondos */
-  --bx-bg: #E6EBEE;
+  --bx-bg: #F2F5F5;
   --bx-card: #FFFFFF;
-  --bx-ink: #111213;
-  --bx-border: #CAD6DA;
-  --bx-muted: #5F6E70;
-  --bx-soft: #F4F7F8;
+  --bx-ink: #173131;
+  --bx-border: #D5E0E2;
+  --bx-muted: #657879;
+  --bx-soft: #F6F8F8;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -236,6 +236,72 @@ body {
   width: 100%;
 }
 
+/* Dashboard ejecutivo */
+.dashboard-page-executive {
+  max-width: 1680px;
+  margin: 0 auto;
+}
+
+.dashboard-page-executive > .card,
+.dashboard-page-executive .dashboard-grid > .card,
+.dashboard-page-executive .dashboard-grid-tarimas-analisis > .card {
+  border: 1px solid rgba(21, 62, 62, .10);
+  border-radius: 10px;
+  box-shadow: 0 5px 16px rgba(21, 62, 62, .055);
+}
+
+.dashboard-page-executive .dashboard-grid-kpis > .card {
+  min-height: 112px;
+  border-top-width: 4px !important;
+  box-shadow: 0 4px 12px rgba(21, 62, 62, .06);
+}
+
+.dashboard-page-executive .dashboard-cajas-kpi > .card {
+  min-height: 94px;
+  background: linear-gradient(100deg, #FFFFFF 0%, #F4F8F9 100%);
+  border-left: 5px solid #85B6C4;
+  border-top: 1px solid rgba(21, 62, 62, .10) !important;
+}
+
+.dashboard-page-executive .dashboard-filters {
+  background: #153E3E;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(21, 62, 62, .16);
+}
+
+.dashboard-page-executive .dashboard-filters > div,
+.dashboard-page-executive .dashboard-filters > label {
+  color: #FFFFFF !important;
+}
+
+.dashboard-page-executive .dashboard-filters .pbi-input,
+.dashboard-page-executive .dashboard-filters .pbi-select {
+  background: #FFFFFF;
+  border-color: rgba(255, 255, 255, .32);
+}
+
+.dashboard-page-executive .kpi-label {
+  color: #657879;
+  letter-spacing: .35px;
+}
+
+.dashboard-page-executive .kpi-value {
+  color: #153E3E;
+  font-size: 25px;
+}
+
+.dashboard-page-executive .recharts-cartesian-grid line {
+  stroke: #E8EEEE;
+}
+
+.dashboard-filters {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  box-shadow: 0 10px 24px rgba(29, 61, 58, .10);
+}
+
 .dashboard-filters label,
 .dashboard-card-filters label {
   min-width: 0;
@@ -393,11 +459,16 @@ body {
   }
 
   .dashboard-grid-kpis,
-  .dashboard-grid-defectos-analisis,
   .dashboard-grid-validation-stats,
   .dashboard-grid-day-stats,
   .dashboard-grid-order-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-grid-defectos-analisis,
+  .familias-defectos-layout,
+  .dashboard-grid-tarimas-analisis {
+    grid-template-columns: 1fr !important;
   }
 
   .dashboard-card-filters {
@@ -457,6 +528,7 @@ body {
 
   .dashboard-grid-kpis,
   .dashboard-grid-defectos-analisis,
+  .dashboard-grid-tarimas-analisis,
   .dashboard-grid-validation-stats,
   .dashboard-grid-day-stats,
   .dashboard-grid-order-stats {

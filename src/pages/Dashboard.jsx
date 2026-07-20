@@ -4,7 +4,7 @@ import {
   LabelList, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  CalendarDays, CheckSquare, HelpCircle, Package, RefreshCw, Search,
+  CalendarDays, CheckSquare, ChevronDown, ChevronRight, HelpCircle, Package, RefreshCw, Search,
   TrendingUp, Users, X,
 } from 'lucide-react';
 import KPICard from '../components/KPICard';
@@ -23,44 +23,50 @@ import {
 import { DashboardFilterProvider, useDashboardFilter } from '../context/DashboardFilterContext';
 
 const BX = {
-  green900: '#1D3D3A',
-  teal700: '#26575B',
-  teal500: '#70949C',
-  teal200: '#9DC8D1',
-  navy: '#2C5992',
-  blueReal: '#265897',
-  blueBright: '#577CEF',
-  success: '#5CBC75',
-  mint: '#B9EBC6',
-  orange: '#DC6E33',
-  amber: '#EDB953',
-  yellow: '#F1C870',
-  oliveGreen: '#537F5E',
-  bg: '#E6EBEE',
+  green900: '#153E3E',
+  teal700: '#153E3E',
+  teal500: '#85B6C4',
+  teal200: '#C7DEE4',
+  navy: '#153E3E',
+  blueReal: '#85B6C4',
+  blueBright: '#5F99AA',
+  success: '#5F99AA',
+  mint: '#DCECEF',
+  orange: '#D06430',
+  amber: '#E2A343',
+  yellow: '#F0C979',
+  oliveGreen: '#668D8D',
+  bg: '#F2F5F5',
   card: '#FFFFFF',
-  ink: '#111213',
-  border: '#CAD6DA',
-  muted: '#5F6E70',
-  soft: '#F4F7F8',
+  ink: '#173131',
+  border: '#D5E0E2',
+  muted: '#657879',
+  soft: '#F6F8F8',
 };
 
 const COLORS_PIE = [
-  BX.teal700, BX.blueReal, BX.success, BX.amber,
-  BX.blueBright, BX.orange, BX.yellow, BX.oliveGreen,
-  BX.teal500, BX.navy, BX.teal200, BX.green900,
+  '#153E3E', '#85B6C4', '#D06430', '#E2A343', '#B01A30',
+  '#477878', '#A7CBD4', '#A94E29', '#C18432', '#7D2633',
+  '#668D8D', '#C7DEE4',
 ];
 const today = new Date().toISOString().slice(0, 10);
-const MIN_DASHBOARD_DATE = '2026-07-01';
-const defaultDesde = MIN_DASHBOARD_DATE;
+const defaultDesde = '2026-07-01';
 const EMPTY_ARRAY = [];
 const EMPTY_OBJECT = {};
 const CLIENTES = ['Quality', 'Destiny', 'Pollos Guerrero', 'Mr Lucky', 'Mayalatex'];
 const AREAS = ['POUCH', 'BOLSEO'];
+const MAX_FAMILIAS_DONUT = 8;
+const TIPOS_BOLSA = [
+  { value: 'SELLO LATERAL', label: 'SELLO LATERAL', area: 'BOLSEO' },
+  { value: 'SELLO LATERAL CON ZIPPER', label: 'SELLO LATERAL CON ZIPPER', area: 'BOLSEO' },
+  { value: 'WICKET', label: 'WICKET', area: 'BOLSEO' },
+  { value: 'POUCH', label: 'POUCH', area: 'POUCH' },
+];
 const ESTATUS_COLORS = {
-  Aprobada: BX.success,
+  Aprobada: BX.teal500,
   'Con hallazgos': BX.amber,
-  'Desviación': BX.teal500,
-  Rechazada: BX.orange,
+  'Desviación': BX.orange,
+  Rechazada: '#B01A30',
 };
 
 const estatusCierreBadge = (estatus) => {
@@ -90,6 +96,29 @@ const normalizeEstatus = (estatus) => (
   typeof estatus === 'string' && estatus.startsWith('Desviaci') ? ESTATUS_DESVIACION : estatus
 );
 
+const tiposBolsaPorArea = (area) => (
+  area === 'POUCH' || area === 'BOLSEO'
+    ? TIPOS_BOLSA.filter((item) => item.area === area)
+    : EMPTY_ARRAY
+);
+
+const filterOptionStyle = (selected, compact = false) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: compact ? 4 : 5,
+  minHeight: compact ? 26 : 30,
+  padding: compact ? '3px 8px' : '4px 10px',
+  border: `1px solid ${selected ? BX.teal500 : BX.border}`,
+  borderRadius: 6,
+  background: selected ? '#EAF5F7' : BX.card,
+  color: selected ? BX.teal700 : BX.muted,
+  fontSize: compact ? 10 : 11,
+  fontWeight: selected ? 800 : 650,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  boxShadow: selected ? '0 0 0 1px rgba(0, 120, 130, 0.08)' : 'none',
+});
+
 function normalizeSemanaValidacion(semana = {}) {
   const semanaNumero = Number(semana.semana || 0);
   const semanaAnio = Number(semana.semanaAnio ?? semana.anio ?? 0);
@@ -113,12 +142,16 @@ const cajasAfectadasValue = (item = {}) => Number(
   item.totalCajasAfectadas ?? item.cajasAfectadas ?? item.totalFamilia ?? item.veces ?? 0,
 );
 
+const tarimasFamiliaBadgeText = (count, singular, plural) => (
+  `${fmt(count)} ${count === 1 ? singular : plural}`
+);
+
 function CardTitle({ title, sub, action }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14, paddingBottom: 10, borderBottom: `1px solid ${BX.border}` }}>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 800, color: BX.green900, marginBottom: 2 }}>{title}</div>
-        {sub && <div style={{ fontSize: 10, color: BX.muted }}>{sub}</div>}
+        <div style={{ fontSize: 15, fontWeight: 800, color: BX.green900, marginBottom: 3, letterSpacing: '-0.15px' }}>{title}</div>
+        {sub && <div style={{ fontSize: 11, color: BX.muted }}>{sub}</div>}
       </div>
       {action}
     </div>
@@ -198,12 +231,42 @@ function ChartLegend({ items, marker = 'pill' }) {
 function FamiliasDefectosDonut({ items, selectedFamilia, onSelectFamilia }) {
   const visibleItems = items.filter((item) => Number(item.porcentaje || 0) > 0);
   const totalCajas = visibleItems.reduce((sum, item) => sum + Number(item.cantidad || 0), 0);
+  const [expandedCards, setExpandedCards] = useState({});
+  const [showAllFamilies, setShowAllFamilies] = useState(false);
+  const familiasConCausaOficial = visibleItems.filter((item) => item.tieneTarimasDesviadasORechazadas);
+  const familiasSinCausaOficial = visibleItems.filter((item) => !item.tieneTarimasDesviadasORechazadas);
+  const sinCausasOficiales = familiasConCausaOficial.length === 0;
+  const familiasOrdenadas = [...familiasConCausaOficial, ...familiasSinCausaOficial];
+  const visibleCards = sinCausasOficiales || showAllFamilies ? familiasOrdenadas : familiasConCausaOficial;
+  const hiddenFamilies = familiasSinCausaOficial.length;
+  const groupedItems = visibleItems.slice(MAX_FAMILIAS_DONUT - 1);
+  const chartItems = visibleItems.length > MAX_FAMILIAS_DONUT
+    ? [
+      ...visibleItems.slice(0, MAX_FAMILIAS_DONUT - 1),
+      {
+        nombre: 'Otros',
+        cantidad: groupedItems.reduce((sum, item) => sum + Number(item.cantidad || 0), 0),
+        porcentaje: groupedItems.reduce((sum, item) => sum + Number(item.porcentaje || 0), 0),
+        color: BX.border,
+        isOtros: true,
+      },
+    ]
+    : visibleItems;
+
+  const toggleExpanded = (nombre, event) => {
+    event.stopPropagation();
+    setExpandedCards((current) => ({
+      ...current,
+      [nombre]: !current[nombre],
+    }));
+  };
 
   if (!visibleItems.length) return <EmptyState />;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 0.85fr) 1fr', gap: 12, alignItems: 'center' }}>
-      <ResponsiveContainer width="100%" height={210}>
+    <div className="familias-defectos-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 320px) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gap: 10 }}>
+      <ResponsiveContainer width="100%" height={250}>
         <PieChart>
           <Tooltip
             formatter={(value, name, entry) => [
@@ -212,27 +275,27 @@ function FamiliasDefectosDonut({ items, selectedFamilia, onSelectFamilia }) {
             ]}
           />
           <Pie
-            data={visibleItems}
+            data={chartItems}
             dataKey="cantidad"
             nameKey="nombre"
             cx="50%"
             cy="50%"
-            innerRadius={54}
-            outerRadius={82}
+            innerRadius={66}
+            outerRadius={100}
             paddingAngle={2}
             stroke={BX.card}
             strokeWidth={2}
             onClick={(entry) => {
               const familia = entry?.nombre ?? entry?.payload?.nombre;
-              if (familia) onSelectFamilia?.(familia);
+              if (familia && familia !== 'Otros') onSelectFamilia?.(familia);
             }}
           >
-            {visibleItems.map((item) => (
+            {chartItems.map((item) => (
               <Cell
                 key={item.nombre}
                 fill={item.color}
-                opacity={!selectedFamilia || selectedFamilia === item.nombre ? 1 : 0.35}
-                style={{ cursor: 'pointer' }}
+                opacity={!selectedFamilia || selectedFamilia === item.nombre || item.isOtros ? 1 : 0.35}
+                style={{ cursor: item.isOtros ? 'default' : 'pointer' }}
               />
             ))}
           </Pie>
@@ -244,13 +307,66 @@ function FamiliasDefectosDonut({ items, selectedFamilia, onSelectFamilia }) {
           </text>
         </PieChart>
       </ResponsiveContainer>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', color: BX.muted, fontSize: 10, fontWeight: 700 }}>
+          <span>{fmt(familiasConCausaOficial.length)} familias causaron rechazo/desviacion</span>
+          <span>{fmt(familiasSinCausaOficial.length)} solo afectaron cajas individuales</span>
+        </div>
+      </div>
 
-      <div style={{ display: 'grid', gap: 8 }}>
-      <ChartLegend
-        marker="dot"
-        items={visibleItems.map((item) => ({ label: item.nombre, color: item.color }))}
-      />
-        {visibleItems.map((item) => (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {sinCausasOficiales && (
+          <div
+            style={{
+              border: `1px solid ${BX.border}`,
+              background: BX.soft,
+              borderRadius: 6,
+              padding: '8px 10px',
+              color: BX.muted,
+              fontSize: 10,
+              lineHeight: 1.4,
+            }}
+          >
+            <strong style={{ display: 'block', color: BX.green900, fontSize: 11, marginBottom: 2 }}>
+              Sin causas oficiales de rechazo o desviacion
+            </strong>
+            Estas familias solo tienen cajas afectadas en el filtro seleccionado.
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6 }}>
+          {visibleCards.map((item) => (
+            <button
+              key={item.nombre}
+              type="button"
+              onClick={() => onSelectFamilia?.(item.nombre)}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '10px 1fr auto',
+                alignItems: 'center',
+                gap: 7,
+                border: selectedFamilia === item.nombre ? `1px solid ${BX.teal500}` : `1px solid ${BX.border}`,
+                background: selectedFamilia === item.nombre ? '#EAF5F7' : BX.soft,
+                borderRadius: 6,
+                padding: '6px 8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: item.color }} />
+              <span style={{ color: BX.ink, fontSize: 10, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
+              <span style={{ color: BX.teal700, fontSize: 10, fontWeight: 800 }}>{fmt(item.porcentaje, 1)}%</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="familias-defectos-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8, maxHeight: showAllFamilies ? 430 : 320, overflowY: 'auto', paddingRight: 4 }}>
+        {visibleCards.map((item) => {
+          const defectos = Array.isArray(item.defectos) ? item.defectos : EMPTY_ARRAY;
+          const expanded = !!expandedCards[item.nombre];
+          const visibleDefectos = expanded ? defectos : defectos.slice(0, 4);
+          const tarimasRechazadas = Number(item.tarimasRechazadasPorEstaFamilia || 0);
+          const tarimasDesviadas = Number(item.tarimasDesviadasPorEstaFamilia || 0);
+
+          return (
           <div
             key={item.nombre}
             onClick={() => onSelectFamilia?.(item.nombre)}
@@ -267,24 +383,87 @@ function FamiliasDefectosDonut({ items, selectedFamilia, onSelectFamilia }) {
               <span style={{ color: BX.teal700, fontSize: 11, fontWeight: 800 }}>{fmt(item.porcentaje, 1)}%</span>
             </div>
             <div style={{ color: BX.muted, fontSize: 10, marginTop: 2 }}>{fmt(item.cantidad)} cajas afectadas</div>
-            {item.defectos?.length ? (
-              <div style={{ display: 'grid', gap: 3, marginTop: 6 }}>
-                {item.defectos.slice(0, 3).map((defecto) => (
-                  <div key={defecto.detalle} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: BX.muted, fontSize: 10 }}>
-                    <span>{defecto.detalle}</span>
+            {(tarimasRechazadas > 0 || tarimasDesviadas > 0) && (
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+                {tarimasRechazadas > 0 && (
+                  <span
+                    title="Causa oficial de rechazo por defecto principal asignado"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      borderRadius: 4,
+                      background: '#FBE2D7',
+                      color: '#9E3B16',
+                      padding: '3px 6px',
+                      fontSize: 9,
+                      fontWeight: 800,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {tarimasFamiliaBadgeText(tarimasRechazadas, 'tarima rechazada', 'tarimas rechazadas')}
+                  </span>
+                )}
+                {tarimasDesviadas > 0 && (
+                  <span
+                    title="Causa oficial de desviacion por defecto principal asignado"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      borderRadius: 4,
+                      background: '#FFF3D7',
+                      color: '#8A5208',
+                      padding: '3px 6px',
+                      fontSize: 9,
+                      fontWeight: 800,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {tarimasFamiliaBadgeText(tarimasDesviadas, 'tarima desviada', 'tarimas desviadas')}
+                  </span>
+                )}
+              </div>
+            )}
+            {defectos.length ? (
+              <div style={{ display: 'grid', gap: 3, marginTop: 6, maxHeight: expanded ? 220 : 'none', overflowY: expanded ? 'auto' : 'visible', paddingRight: expanded ? 3 : 0 }}>
+                {visibleDefectos.map((defecto, index) => (
+                  <div key={`${defecto.detalle || 'defecto'}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: BX.muted, fontSize: 10 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: expanded ? 'normal' : 'nowrap' }}>{defecto.detalle}</span>
                     <strong style={{ color: BX.ink }}>{fmt(defecto.cajasAfectadas)} cajas</strong>
                   </div>
                 ))}
               </div>
             ) : null}
+            {defectos.length > 4 && (
+              <button
+                type="button"
+                onClick={(event) => toggleExpanded(item.nombre, event)}
+                style={{ marginTop: 8, border: 'none', background: 'transparent', color: BX.teal700, cursor: 'pointer', fontSize: 10, fontWeight: 800, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                {expanded ? 'Ver menos' : `Ver todos (${fmt(defectos.length)})`}
+              </button>
+            )}
           </div>
-        ))}
+          );
+        })}
+        </div>
+        {!sinCausasOficiales && hiddenFamilies > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAllFamilies((current) => !current)}
+            style={{ justifySelf: 'start', border: 'none', background: 'transparent', color: BX.teal700, cursor: 'pointer', fontSize: 10, fontWeight: 800, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            {showAllFamilies ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {showAllFamilies ? 'Ver menos familias' : `Ver todas las familias (${fmt(hiddenFamilies)} mas)`}
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 function TarimasAnalisisChart({ title, sub, data, loading, error, color }) {
+  const [showAll, setShowAll] = useState(false);
   const rows = Array.isArray(data)
     ? data
       .map((item) => ({
@@ -293,10 +472,15 @@ function TarimasAnalisisChart({ title, sub, data, loading, error, color }) {
         porcentajeDelTotal: Number(item.porcentajeDelTotal || 0),
       }))
       .sort((a, b) => b.cantidadTarimas - a.cantidadTarimas)
-      .slice(0, 8)
     : EMPTY_ARRAY;
   const totalTarimas = rows.reduce((sum, item) => sum + item.cantidadTarimas, 0);
-  const sliceColors = [color, BX.teal700, BX.amber, BX.blueReal, BX.teal500, BX.oliveGreen, BX.yellow, BX.navy];
+  const secondaryChartColors = COLORS_PIE.filter((itemColor) => itemColor.toLowerCase() !== color.toLowerCase());
+  const coloredRows = rows.map((item, index) => ({
+    ...item,
+    chartColor: index === 0 ? color : secondaryChartColors[(index - 1) % secondaryChartColors.length],
+  }));
+  const visibleRows = showAll ? coloredRows : coloredRows.slice(0, 6);
+  const chartHeight = Math.max(190, visibleRows.length * 38);
 
   return (
     <div className="card" style={{ padding: '12px 14px' }}>
@@ -308,9 +492,9 @@ function TarimasAnalisisChart({ title, sub, data, loading, error, color }) {
       ) : error ? (
         <EmptyState text={error} />
       ) : rows.length ? (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 10, alignItems: 'center' }}>
-            <ResponsiveContainer width="100%" height={170}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 0.7fr) minmax(0, 2fr)', gap: 18, alignItems: 'center' }}>
+          <div>
+            <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Tooltip
                   formatter={(value, name, entry) => [
@@ -319,19 +503,19 @@ function TarimasAnalisisChart({ title, sub, data, loading, error, color }) {
                   ]}
                 />
                 <Pie
-                  data={rows}
+                  data={visibleRows}
                   dataKey="cantidadTarimas"
                   nameKey="detalleDefecto"
                   cx="50%"
                   cy="50%"
-                  innerRadius={42}
-                  outerRadius={66}
+                  innerRadius={60}
+                  outerRadius={92}
                   paddingAngle={2}
                   stroke={BX.card}
                   strokeWidth={2}
                 >
-                  {rows.map((item, index) => (
-                    <Cell key={item.detalleDefecto} fill={sliceColors[index % sliceColors.length]} />
+                  {visibleRows.map((item) => (
+                    <Cell key={item.detalleDefecto} fill={item.chartColor} />
                   ))}
                 </Pie>
                 <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" style={{ fill: BX.green900, fontSize: 20, fontWeight: 800 }}>
@@ -342,19 +526,25 @@ function TarimasAnalisisChart({ title, sub, data, loading, error, color }) {
                 </text>
               </PieChart>
             </ResponsiveContainer>
-            <div style={{ display: 'grid', gap: 5 }}>
-              {rows.slice(0, 5).map((item, index) => (
+            <div style={{ display: 'none' }}>
+              {visibleRows.map((item) => (
                 <div key={item.detalleDefecto} style={{ display: 'grid', gridTemplateColumns: '10px 1fr auto', alignItems: 'center', gap: 6, color: BX.muted, fontSize: 10 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 99, background: sliceColors[index % sliceColors.length] }} />
+                  <span style={{ width: 8, height: 8, borderRadius: 99, background: item.chartColor }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.detalleDefecto}</span>
                   <strong style={{ color: BX.ink }}>{fmt(item.cantidadTarimas)}</strong>
                 </div>
               ))}
             </div>
           </div>
-          <div style={{ display: 'none' }}>
-        <ResponsiveContainer width="100%" height={0}>
-          <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 34, left: 118, bottom: 0 }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+              <span style={{ background: `${color}18`, color, borderRadius: 6, padding: '4px 8px', fontSize: 10, fontWeight: 800 }}>
+                Total: {fmt(totalTarimas)} tarimas
+              </span>
+            </div>
+            <div style={{ maxHeight: 420, overflowY: 'auto', overflowX: 'hidden' }}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <BarChart data={visibleRows} layout="vertical" margin={{ top: 0, right: 34, left: 118, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={BX.bg} horizontal={false} />
             <XAxis type="number" tick={{ fill: BX.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="detalleDefecto" width={112} tick={{ fill: BX.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -365,20 +555,34 @@ function TarimasAnalisisChart({ title, sub, data, loading, error, color }) {
               ]}
               labelFormatter={(label) => label}
             />
-            <Bar dataKey="cantidadTarimas" name="Tarimas" fill={color} radius={[0, 4, 4, 0]} barSize={16}>
+            <Bar dataKey="cantidadTarimas" name="Tarimas" radius={[0, 4, 4, 0]} barSize={16}>
+              {visibleRows.map((item) => (
+                <Cell key={item.detalleDefecto} fill={item.chartColor} />
+              ))}
               <LabelList dataKey="cantidadTarimas" position="right" formatter={(value) => fmt(value)} style={{ fill: BX.ink, fontSize: 10, fontWeight: 800 }} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+            </div>
+            {coloredRows.length > 6 && (
+              <button
+                type="button"
+                onClick={() => setShowAll((current) => !current)}
+                style={{ marginTop: 8, border: 'none', background: 'transparent', color: BX.teal700, cursor: 'pointer', fontSize: 10, fontWeight: 800, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                {showAll ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                {showAll ? 'Ver solo top 6' : `Ver todos los defectos (${fmt(coloredRows.length)})`}
+              </button>
+            )}
           </div>
-        </>
+        </div>
       ) : <EmptyState text="Sin tarimas para los filtros seleccionados" />}
     </div>
   );
 }
 
 function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, initialHasta = today }) {
-  const [desde, setDesde] = useState(initialDesde < MIN_DASHBOARD_DATE ? MIN_DASHBOARD_DATE : initialDesde);
+  const [desde, setDesde] = useState(initialDesde);
   const [hasta, setHasta] = useState(initialHasta);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -391,14 +595,15 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
   const [printCardSearch, setPrintCardSearch] = useState('');
   const [selectedPrintCard, setSelectedPrintCard] = useState(null);
   const [showPrintCardOptions, setShowPrintCardOptions] = useState(false);
-  const [paretoMode, setParetoMode] = useState('frecuencia');
   const [openHelp, setOpenHelp] = useState('');
   const [cliente, setCliente] = useState('todos');
   const [tipoProceso, setTipoProceso] = useState('todos');
-  const [historicoDesde, setHistoricoDesde] = useState(initialDesde < MIN_DASHBOARD_DATE ? MIN_DASHBOARD_DATE : initialDesde);
+  const [tipoBolsa, setTipoBolsa] = useState('todos');
+  const [historicoDesde, setHistoricoDesde] = useState(initialDesde);
   const [historicoHasta, setHistoricoHasta] = useState(initialHasta);
   const [historicoCliente, setHistoricoCliente] = useState('todos');
   const [historicoTipoProceso, setHistoricoTipoProceso] = useState('todos');
+  const [historicoTipoBolsa, setHistoricoTipoBolsa] = useState('todos');
   const [historicoMensual, setHistoricoMensual] = useState(null);
   const [historicoLoading, setHistoricoLoading] = useState(true);
   const [historicoError, setHistoricoError] = useState('');
@@ -407,6 +612,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
   const [paretoDefectos, setParetoDefectos] = useState(EMPTY_ARRAY);
   const [paretoLoading, setParetoLoading] = useState(true);
   const [paretoError, setParetoError] = useState('');
+  const [showAllPareto, setShowAllPareto] = useState(false);
   const [familiaFiltro, setFamiliaFiltro] = useState('');
   const [estatusFiltro, setEstatusFiltro] = useState(null);
   const [tarimasRechazadasAnalisis, setTarimasRechazadasAnalisis] = useState(EMPTY_ARRAY);
@@ -418,13 +624,22 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
   const [estatusSeleccionado, setEstatusSeleccionado] = useState(null);
   const [mesActivoIndex, setMesActivoIndex] = useState(0);
   const { filtros, toggleFiltro, limpiarFiltros, hayFiltros } = useDashboardFilter();
+  const tiposBolsaDisponibles = useMemo(() => tiposBolsaPorArea(tipoProceso), [tipoProceso]);
+  const tiposBolsaHistoricoDisponibles = useMemo(() => tiposBolsaPorArea(historicoTipoProceso), [historicoTipoProceso]);
+  const filtrosGlobales = useMemo(() => ({
+    desde,
+    hasta,
+    cliente,
+    tipoProceso,
+    tipoBolsa,
+  }), [desde, hasta, cliente, tipoProceso, tipoBolsa]);
 
   const load = async () => {
     setLoading(true);
     setErrors([]);
     const [analyticsResult, kpisResult] = await Promise.allSettled([
-      getDashboardAnalytics({ desde, hasta, cliente, tipoProceso }),
-      getKpisGlobales({ desde, hasta, cliente, tipoProceso }),
+      getDashboardAnalytics(filtrosGlobales),
+      getKpisGlobales(filtrosGlobales),
     ]);
 
     if (analyticsResult.status === 'fulfilled') {
@@ -449,7 +664,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
   useEffect(() => {
     let ignore = false;
 
-    getDashboardAnalytics({ desde, hasta, cliente, tipoProceso })
+    getDashboardAnalytics(filtrosGlobales)
       .then((payload) => {
         if (!ignore) {
           setData(payload);
@@ -471,12 +686,12 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
     return () => {
       ignore = true;
     };
-  }, [desde, hasta, cliente, tipoProceso]);
+  }, [filtrosGlobales]);
 
   useEffect(() => {
     let ignore = false;
 
-    getKpisGlobales({ desde, hasta, cliente, tipoProceso })
+    getKpisGlobales(filtrosGlobales)
       .then((payload) => {
         if (!ignore) {
           setKpisGlobales(payload || null);
@@ -491,15 +706,15 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
     return () => {
       ignore = true;
     };
-  }, [desde, hasta, cliente, tipoProceso]);
+  }, [filtrosGlobales]);
 
   useEffect(() => {
     let ignore = false;
-    getDefectosFamilias({ desde, hasta, cliente, tipoProceso, estatusTarima: estatusFiltro })
+    getDefectosFamilias({ ...filtrosGlobales, estatusTarima: estatusFiltro })
       .then((payload) => { if (!ignore) setDefectosFamilias(Array.isArray(payload) ? payload : EMPTY_ARRAY); })
       .catch(() => { if (!ignore) setDefectosFamilias(EMPTY_ARRAY); });
     return () => { ignore = true; };
-  }, [desde, hasta, cliente, tipoProceso, estatusFiltro]);
+  }, [filtrosGlobales, estatusFiltro]);
 
   useEffect(() => {
     setHistoricoLoading(true);
@@ -508,19 +723,20 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
     setHistoricoHasta(hasta);
     setHistoricoCliente(cliente);
     setHistoricoTipoProceso(tipoProceso);
-  }, [desde, hasta, cliente, tipoProceso]);
+    setHistoricoTipoBolsa(tipoBolsa);
+  }, [desde, hasta, cliente, tipoProceso, tipoBolsa]);
 
   useEffect(() => {
     setFamiliaFiltro('');
     setEstatusFiltro(null);
-  }, [desde, hasta, cliente, tipoProceso]);
+  }, [desde, hasta, cliente, tipoProceso, tipoBolsa]);
 
   useEffect(() => {
     let ignore = false;
     setParetoLoading(true);
     setParetoError('');
 
-    getParetoDefectos({ desde, hasta, cliente, tipoProceso, familia: familiaFiltro, estatusTarima: estatusFiltro })
+    getParetoDefectos({ ...filtrosGlobales, familia: familiaFiltro, estatusTarima: estatusFiltro })
       .then((payload) => {
         if (!ignore) {
           setParetoDefectos(Array.isArray(payload) ? payload : EMPTY_ARRAY);
@@ -539,14 +755,14 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
       });
 
     return () => { ignore = true; };
-  }, [desde, hasta, cliente, tipoProceso, familiaFiltro, estatusFiltro]);
+  }, [filtrosGlobales, familiaFiltro, estatusFiltro]);
 
   useEffect(() => {
     let ignore = false;
     setTarimasAnalisisLoading(true);
     setTarimasAnalisisErrors({ rechazada: '', desviada: '' });
 
-    const params = { desde, hasta, cliente, tipoProceso, familia: familiaFiltro };
+    const params = { ...filtrosGlobales, familia: familiaFiltro };
     Promise.allSettled([
       getTarimasAnalisis('Rechazada', params),
       getTarimasAnalisis(ESTATUS_DESVIACION, params),
@@ -578,7 +794,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
       });
 
     return () => { ignore = true; };
-  }, [desde, hasta, cliente, tipoProceso, familiaFiltro]);
+  }, [filtrosGlobales, familiaFiltro]);
 
   useEffect(() => {
     let ignore = false;
@@ -587,6 +803,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
       hasta: historicoHasta,
       cliente: historicoCliente,
       tipoProceso: historicoTipoProceso,
+      tipoBolsa: historicoTipoBolsa,
     })
       .then((payload) => {
         if (!ignore) {
@@ -605,7 +822,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         }
       });
     return () => { ignore = true; };
-  }, [historicoDesde, historicoHasta, historicoCliente, historicoTipoProceso]);
+  }, [historicoDesde, historicoHasta, historicoCliente, historicoTipoProceso, historicoTipoBolsa]);
 
   useEffect(() => {
     let ignore = false;
@@ -631,8 +848,8 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
 
   useEffect(() => {
     let ignore = false;
-    console.log('Cargando detalle interactivo...', { desde, hasta, cliente, tipoProceso });
-    getDetalleInteractivo({ desde, hasta, cliente, tipoProceso })
+    console.log('Cargando detalle interactivo...', filtrosGlobales);
+    getDetalleInteractivo(filtrosGlobales)
       .then((payload) => {
         const tarimas = Array.isArray(payload) ? payload : payload?.tarimas;
         const semanas = Array.isArray(payload?.semanasDesglose) ? payload.semanasDesglose : EMPTY_ARRAY;
@@ -652,7 +869,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         }
       });
     return () => { ignore = true; };
-  }, [desde, hasta, cliente, tipoProceso]);
+  }, [filtrosGlobales]);
 
   const historicoGrafico = historicoMensual?.meses || EMPTY_ARRAY;
   const diaMeses = Array.isArray(data?.tarimasPorDiaMes)
@@ -703,13 +920,6 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         accent,
       },
       {
-        label: 'Cajas revisadas',
-        value: fmt(kpisGlobales?.cajasRevisadasTotales),
-        sub: 'Total del periodo',
-        icon: CheckSquare,
-        accent: BX.teal500,
-      },
-      {
         label: 'Aprobación',
         value: pct(porcentajeAprobacion),
         sub: 'Porcentaje de aprobación de tarimas',
@@ -749,55 +959,63 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         accent: BX.teal500,
         color: ESTATUS_COLORS[ESTATUS_DESVIACION_LEGACY],
       },
+      {
+        label: 'Cajas revisadas',
+        value: fmt(kpisGlobales?.cajasRevisadasTotales),
+        sub: 'Total del periodo',
+        icon: CheckSquare,
+        accent: BX.teal500,
+      },
     ];
   }, [accent, kpisGlobales, porcentajeAprobacion, tasaAprobacionColor]);
 
-  const paretoConfig = paretoMode === 'piezas'
-    ? {
-      barName: 'Piezas afectadas',
-      sub: familiaFiltro ? `Piezas afectadas dentro de ${familiaFiltro}` : 'Piezas afectadas por defecto',
-      valueField: 'piezas',
-    }
-    : {
-      barName: 'Frecuencia en cajas',
-      sub: 'Nivel caja individual · cuantas cajas tuvieron el defecto',
-      valueField: 'frecuencia',
-    };
+  const paretoConfig = {
+    barName: 'Frecuencia en cajas',
+    sub: 'Nivel caja individual - cuantas cajas tuvieron el defecto',
+  };
 
   const defectosPareto = useMemo(() => {
     const rowsBase = Array.isArray(paretoDefectos) ? paretoDefectos : EMPTY_ARRAY;
     const totalFrecuencia = rowsBase.reduce((sum, item) => sum + Number(item.frecuenciaCajas || 0), 0) || 1;
-    let acumuladoFrecuencia = 0;
 
-    return rowsBase.slice(0, 8).map((item) => {
+    return rowsBase.reduce((rows, item) => {
       const frecuencia = Number(item.frecuenciaCajas || 0);
-      const piezas = Number(item.piezasAfectadas || 0);
-      acumuladoFrecuencia += frecuencia;
+      const acumuladoFrecuencia = (rows.at(-1)?.acumuladoFrecuencia || 0) + frecuencia;
 
-      return {
+      rows.push({
         defecto: item.defecto,
         familia: item.familia,
         frecuencia,
-        piezas,
-        cantidad: paretoMode === 'piezas' ? piezas : frecuencia,
+        cantidad: frecuencia,
+        acumuladoFrecuencia,
         acumulado: Number(((acumuladoFrecuencia / totalFrecuencia) * 100).toFixed(1)),
-      };
-    });
-  }, [paretoDefectos, paretoMode]);
+      });
+
+      return rows;
+    }, []);
+  }, [paretoDefectos]);
+  const defectosParetoVisibles = showAllPareto ? defectosPareto : defectosPareto.slice(0, 10);
+  const paretoChartHeight = Math.max(300, defectosParetoVisibles.length * 34);
 
   const defectosFamilia = useMemo(() => (
-    defectosFamilias.slice(0, 8).map((item, index) => ({
-      nombre: item.familia,
-      cantidad: cajasAfectadasValue(item),
-      porcentaje: item.porcentajeFamilia,
-      defectos: (item.defectos || [])
-        .map((defecto) => ({
-          ...defecto,
-          cajasAfectadas: cajasAfectadasValue(defecto),
-        }))
-        .sort((a, b) => b.cajasAfectadas - a.cajasAfectadas),
-      color: COLORS_PIE[index % COLORS_PIE.length],
-    }))
+    defectosFamilias
+      .map((item, index) => ({
+        nombre: item.familia,
+        cantidad: cajasAfectadasValue(item),
+        porcentaje: item.porcentajeFamilia,
+        tarimasRechazadasPorEstaFamilia: Number(item.tarimasRechazadasPorEstaFamilia || 0),
+        tarimasDesviadasPorEstaFamilia: Number(item.tarimasDesviadasPorEstaFamilia || 0),
+        tieneTarimasDesviadasORechazadas: item.tieneTarimasDesviadasORechazadas === true
+          || Number(item.tarimasRechazadasPorEstaFamilia || 0) > 0
+          || Number(item.tarimasDesviadasPorEstaFamilia || 0) > 0,
+        defectos: (item.defectos || [])
+          .map((defecto) => ({
+            ...defecto,
+            cajasAfectadas: cajasAfectadasValue(defecto),
+          }))
+          .sort((a, b) => b.cajasAfectadas - a.cajasAfectadas),
+        color: COLORS_PIE[index % COLORS_PIE.length],
+      }))
   ), [defectosFamilias]);
 
   const defectosFamiliaInteractivo = defectosFamilia;
@@ -810,12 +1028,32 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
   const toggleTipoProceso = (value) => {
     setLoading(true);
     setMesActivoIndex(0);
-    setTipoProceso((actual) => (actual === value ? 'todos' : value));
+    const nextTipoProceso = tipoProceso === value ? 'todos' : value;
+    const nextTiposBolsa = tiposBolsaPorArea(nextTipoProceso);
+    if (tipoBolsa !== 'todos' && !nextTiposBolsa.some((item) => item.value === tipoBolsa)) {
+      setTipoBolsa('todos');
+    }
+    setTipoProceso(nextTipoProceso);
   };
   const toggleHistoricoTipoProceso = (value) => {
     setHistoricoLoading(true);
     setHistoricoError('');
-    setHistoricoTipoProceso((actual) => (actual === value ? 'todos' : value));
+    const nextTipoProceso = historicoTipoProceso === value ? 'todos' : value;
+    const nextTiposBolsa = tiposBolsaPorArea(nextTipoProceso);
+    if (historicoTipoBolsa !== 'todos' && !nextTiposBolsa.some((item) => item.value === historicoTipoBolsa)) {
+      setHistoricoTipoBolsa('todos');
+    }
+    setHistoricoTipoProceso(nextTipoProceso);
+  };
+  const toggleTipoBolsa = (value) => {
+    setLoading(true);
+    setMesActivoIndex(0);
+    setTipoBolsa((current) => current === value ? 'todos' : value);
+  };
+  const toggleHistoricoTipoBolsa = (value) => {
+    setHistoricoLoading(true);
+    setHistoricoError('');
+    setHistoricoTipoBolsa((current) => current === value ? 'todos' : value);
   };
 
   const tarimasMes = historicoGrafico.map((item) => ({
@@ -830,6 +1068,16 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
     verificaciones: Number(item.verificacionesCerradas || 0),
     tasaAprobacionReal: Number(item.tasaAprobacionReal ?? item.tasaAprobacion ?? 0),
   }));
+  const tarimasMesPorcentaje = tarimasMes.map((item) => {
+    const totalClasificado = item.aprobadas + item.conHallazgos + item.desviadas + item.rechazadas || 1;
+    return {
+      ...item,
+      aprobadasPct: (item.aprobadas / totalClasificado) * 100,
+      conHallazgosPct: (item.conHallazgos / totalClasificado) * 100,
+      desviadasPct: (item.desviadas / totalClasificado) * 100,
+      rechazadasPct: (item.rechazadas / totalClasificado) * 100,
+    };
+  });
 
   const diaMesResumen = useMemo(() => (diaMes.dias || []).reduce((acc, item) => ({
     aprobadas: acc.aprobadas + Number(item.tarimasAprobadas || 0),
@@ -1003,7 +1251,15 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
       <CardTitle
         title="Tarimas por día del mes"
         sub={diaMes.nombreMes ? `${diaMes.nombreMes} ${diaMes.anio} · aprobadas, hallazgos, desviadas y rechazadas` : 'Mes seleccionado'}
-        action={<HelpIcon text="Muestra la actividad diaria del mes seleccionado y separa las tarimas por estatus. Sirve para detectar días pico, días sin actividad y concentración de hallazgos o rechazos." open={openHelp === 'diaMes'} onToggle={() => setOpenHelp(openHelp === 'diaMes' ? '' : 'diaMes')} />}
+        action={(
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ minWidth: 138, padding: '7px 10px', borderRadius: 8, background: '#EEF5F6', border: `1px solid ${BX.teal200}`, textAlign: 'right' }}>
+              <div style={{ color: BX.green900, fontSize: 18, lineHeight: 1, fontWeight: 850 }}>{fmt(kpisGlobales?.cajasRevisadasTotales)}</div>
+              <div style={{ color: BX.muted, fontSize: 9, fontWeight: 750, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.35 }}>Cajas revisadas · periodo</div>
+            </div>
+            <HelpIcon text="Muestra la actividad diaria del mes seleccionado y separa las tarimas por estatus. Sirve para detectar días pico, días sin actividad y concentración de hallazgos o rechazos." open={openHelp === 'diaMes'} onToggle={() => setOpenHelp(openHelp === 'diaMes' ? '' : 'diaMes')} />
+          </div>
+        )}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: -4, marginBottom: 8 }}>
         <button
@@ -1095,7 +1351,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
   );
 
   return (
-    <div className="dashboard-page" style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14, background: BX.bg, minHeight: '100%' }}>
+    <div className="dashboard-page dashboard-page-executive" style={{ padding: '22px 26px 30px', display: 'flex', flexDirection: 'column', gap: 18, background: BX.bg, minHeight: '100%' }}>
       <div id="tour-filtros" className="card dashboard-filters" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: BX.green900 }}>
           <CalendarDays size={15} color={accent} /> Rango analítico
@@ -1105,12 +1361,11 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
           <input
             className="pbi-input"
             type="date"
-            min={MIN_DASHBOARD_DATE}
             value={desde}
             onChange={(event) => {
               setLoading(true);
               setMesActivoIndex(0);
-              setDesde(event.target.value < MIN_DASHBOARD_DATE ? MIN_DASHBOARD_DATE : event.target.value);
+              setDesde(event.target.value);
             }}
             style={{ width: 140 }}
           />
@@ -1120,7 +1375,6 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
           <input
             className="pbi-input"
             type="date"
-            min={MIN_DASHBOARD_DATE}
             value={hasta}
             onChange={(event) => {
               setLoading(true);
@@ -1148,19 +1402,26 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
             ))}
           </select>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: BX.muted }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: BX.muted }}>
           Área
           {AREAS.map((item) => (
-            <span key={item} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: tipoProceso === item ? 800 : 600, color: tipoProceso === item ? BX.teal700 : BX.muted }}>
-              <input
-                type="checkbox"
-                checked={tipoProceso === item}
-                onChange={() => toggleTipoProceso(item)}
-              />
+            <button key={item} type="button" aria-pressed={tipoProceso === item} onClick={() => toggleTipoProceso(item)} style={filterOptionStyle(tipoProceso === item)}>
+              {tipoProceso === item && <CheckSquare size={13} />}
               {item}
-            </span>
+            </button>
           ))}
-        </label>
+        </div>
+        {tiposBolsaDisponibles.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: BX.muted, flexWrap: 'wrap' }}>
+            Tipo de bolsa
+            {tiposBolsaDisponibles.map((item) => (
+              <button key={item.value} type="button" aria-pressed={tipoBolsa === item.value} onClick={() => toggleTipoBolsa(item.value)} style={filterOptionStyle(tipoBolsa === item.value)}>
+                {tipoBolsa === item.value && <CheckSquare size={13} />}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
         <button className="filter-btn" onClick={load} disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <RefreshCw size={13} /> {loading ? 'Cargando' : 'Actualizar'}
         </button>
@@ -1193,13 +1454,13 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         </div>
       )}
 
-      <div id="tour-kpis" className="dashboard-grid dashboard-grid-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
-        {kpis.map((kpi) => (
+      <div id="tour-kpis" className="dashboard-grid dashboard-grid-kpis" style={{ order: 1, display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12 }}>
+        {kpis.filter((kpi) => kpi.label !== 'Cajas revisadas').map((kpi) => (
           <KPICard key={kpi.label} {...kpi} />
         ))}
       </div>
 
-      <div>
+      <div style={{ order: 4 }}>
         {renderDiaMesCard('tour-validacion')}
         <div className="card" style={{ display: 'none' }}>
           <CardTitle
@@ -1276,7 +1537,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         </div>
       </div>
 
-      <div className="dashboard-grid dashboard-grid-halves" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+      <div className="dashboard-grid dashboard-grid-halves" style={{ order: 2, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
         <div className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Histórico mensual comparativo"
@@ -1289,12 +1550,11 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
               <input
                 className="pbi-input"
                 type="date"
-                min={MIN_DASHBOARD_DATE}
                 value={historicoDesde}
                 onChange={(event) => {
                   setHistoricoLoading(true);
                   setHistoricoError('');
-                  setHistoricoDesde(event.target.value < MIN_DASHBOARD_DATE ? MIN_DASHBOARD_DATE : event.target.value);
+                  setHistoricoDesde(event.target.value);
                 }}
                 style={{ width: 126, height: 28, fontSize: 10 }}
               />
@@ -1304,7 +1564,6 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
               <input
                 className="pbi-input"
                 type="date"
-                min={MIN_DASHBOARD_DATE}
                 value={historicoHasta}
                 onChange={(event) => {
                   setHistoricoLoading(true);
@@ -1332,19 +1591,26 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
                 ))}
               </select>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: BX.muted }}>
-              Area
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: BX.muted }}>
+              Área
               {AREAS.map((item) => (
-                <span key={item} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: historicoTipoProceso === item ? 800 : 600, color: historicoTipoProceso === item ? BX.teal700 : BX.muted }}>
-                  <input
-                    type="checkbox"
-                    checked={historicoTipoProceso === item}
-                    onChange={() => toggleHistoricoTipoProceso(item)}
-                  />
+                <button key={item} type="button" aria-pressed={historicoTipoProceso === item} onClick={() => toggleHistoricoTipoProceso(item)} style={filterOptionStyle(historicoTipoProceso === item, true)}>
+                  {historicoTipoProceso === item && <CheckSquare size={12} />}
                   {item}
-                </span>
+                </button>
               ))}
-            </label>
+            </div>
+            {tiposBolsaHistoricoDisponibles.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: BX.muted, flexWrap: 'wrap' }}>
+                Tipo de bolsa
+                {tiposBolsaHistoricoDisponibles.map((item) => (
+                  <button key={item.value} type="button" aria-pressed={historicoTipoBolsa === item.value} onClick={() => toggleHistoricoTipoBolsa(item.value)} style={filterOptionStyle(historicoTipoBolsa === item.value, true)}>
+                    {historicoTipoBolsa === item.value && <CheckSquare size={12} />}
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <span className="dashboard-filter-note" style={{ marginLeft: 'auto', fontSize: 10, color: historicoError ? BX.orange : BX.muted }}>
               {historicoLoading ? 'Cargando historico...' : historicoError || 'Filtro independiente'}
             </span>
@@ -1362,22 +1628,37 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
                     { label: 'Con hallazgos', color: ESTATUS_COLORS['Con hallazgos'] },
                     { label: 'Desviadas', color: ESTATUS_COLORS[ESTATUS_DESVIACION_LEGACY] },
                     { label: 'Rechazadas', color: ESTATUS_COLORS.Rechazada },
-                    { label: 'Tasa real', color: BX.blueReal },
+                    { label: 'Tasa real', color: BX.green900 },
                   ]}
                 />
               </div>
             <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={tarimasMes} margin={{ top: 8, right: 18, left: -10, bottom: 0 }}>
+              <ComposedChart data={tarimasMesPorcentaje} margin={{ top: 20, right: 18, left: -10, bottom: 0 }}>
                 <CartesianGrid stroke={BX.bg} vertical={false} />
                 <XAxis dataKey="periodo" tick={{ fill: BX.teal500, fontSize: 12, fontFamily: 'Inter, Segoe UI, sans-serif' }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="tarimas" tick={{ fill: BX.teal500, fontSize: 12, fontFamily: 'Inter, Segoe UI, sans-serif' }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="porcentaje" orientation="right" domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fill: BX.teal500, fontSize: 11, fontFamily: 'Inter, Segoe UI, sans-serif' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar yAxisId="tarimas" dataKey="aprobadas" name="Aprobadas" stackId="estatus" fill={ESTATUS_COLORS.Aprobada} radius={[0, 0, 0, 0]} barSize={26} />
-                <Bar yAxisId="tarimas" dataKey="conHallazgos" name="Con hallazgos" stackId="estatus" fill={ESTATUS_COLORS['Con hallazgos']} radius={[0, 0, 0, 0]} barSize={26} />
-                <Bar yAxisId="tarimas" dataKey="desviadas" name="Desviadas" stackId="estatus" fill={ESTATUS_COLORS[ESTATUS_DESVIACION_LEGACY]} radius={[0, 0, 0, 0]} barSize={26} />
-                <Bar yAxisId="tarimas" dataKey="rechazadas" name="Rechazadas" stackId="estatus" fill={ESTATUS_COLORS.Rechazada} radius={[6, 6, 0, 0]} barSize={26} />
-                <Line yAxisId="porcentaje" type="monotone" dataKey="tasaAprobacionReal" name="Tasa aprobacion real" stroke={BX.blueReal} strokeWidth={2.5} dot={{ fill: BX.blueReal, stroke: BX.card, strokeWidth: 2, r: 3 }} activeDot={{ r: 4 }} />
+                <YAxis yAxisId="porcentaje" domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fill: BX.teal500, fontSize: 11, fontFamily: 'Inter, Segoe UI, sans-serif' }} axisLine={false} tickLine={false} />
+                <Tooltip content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const row = payload[0]?.payload || {};
+                  return (
+                    <div className="custom-tooltip">
+                      <div className="label">{row.periodo}</div>
+                      <div className="item"><span>Total: <strong>{fmt(row.total)} tarimas</strong></span></div>
+                      <div className="item"><span>Aprobadas: <strong>{fmt(row.aprobadas)} ({fmt(row.aprobadasPct, 1)}%)</strong></span></div>
+                      <div className="item"><span>Con hallazgos: <strong>{fmt(row.conHallazgos)} ({fmt(row.conHallazgosPct, 1)}%)</strong></span></div>
+                      <div className="item"><span>Desviadas: <strong>{fmt(row.desviadas)} ({fmt(row.desviadasPct, 1)}%)</strong></span></div>
+                      <div className="item"><span>Rechazadas: <strong>{fmt(row.rechazadas)} ({fmt(row.rechazadasPct, 1)}%)</strong></span></div>
+                      <div className="item"><span>Tasa real: <strong>{pct(row.tasaAprobacionReal)}</strong></span></div>
+                    </div>
+                  );
+                }} />
+                <Bar yAxisId="porcentaje" dataKey="aprobadasPct" name="Aprobadas" stackId="estatus" fill={ESTATUS_COLORS.Aprobada} barSize={34} />
+                <Bar yAxisId="porcentaje" dataKey="conHallazgosPct" name="Con hallazgos" stackId="estatus" fill={ESTATUS_COLORS['Con hallazgos']} barSize={34} />
+                <Bar yAxisId="porcentaje" dataKey="desviadasPct" name="Desviadas" stackId="estatus" fill={ESTATUS_COLORS[ESTATUS_DESVIACION_LEGACY]} barSize={34} />
+                <Bar yAxisId="porcentaje" dataKey="rechazadasPct" name="Rechazadas" stackId="estatus" fill={ESTATUS_COLORS.Rechazada} radius={[6, 6, 0, 0]} barSize={34}>
+                  <LabelList dataKey="total" position="top" formatter={(value) => fmt(value)} style={{ fill: BX.green900, fontSize: 10, fontWeight: 800 }} />
+                </Bar>
+                <Line yAxisId="porcentaje" type="monotone" dataKey="tasaAprobacionReal" name="Tasa aprobacion real" stroke={BX.green900} strokeWidth={2.5} dot={{ fill: BX.green900, stroke: BX.card, strokeWidth: 2, r: 3 }} activeDot={{ r: 4 }} />
               </ComposedChart>
             </ResponsiveContainer>
             </>
@@ -1386,8 +1667,8 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
 
       </div>
 
-      <div className="dashboard-grid dashboard-grid-defectos-analisis" style={{ display: 'grid', gridTemplateColumns: '1.45fr 1fr', gap: 10, alignItems: 'stretch' }}>
-        <div id="tour-familias" className="card" style={{ padding: '12px 14px', minHeight: 420 }}>
+      <div className="dashboard-grid dashboard-grid-defectos-analisis" style={{ order: 5, display: 'grid', gridTemplateColumns: '1fr', gap: 10, alignItems: 'stretch' }}>
+        <div id="tour-familias" className="card" style={{ order: 2, padding: '12px 14px', minHeight: 420 }}>
           <CardTitle
             title="Familias de defectos"
             sub="Cajas afectadas por familia"
@@ -1411,7 +1692,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
           ) : <EmptyState />}
         </div>
 
-        <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
+        <div className="dashboard-grid-tarimas-analisis" style={{ order: 1, display: 'grid', gridTemplateColumns: '1fr', gap: 10, alignItems: 'stretch' }}>
           <TarimasAnalisisChart
             title="Tarimas rechazadas"
             sub={familiaFiltro ? `Familia: ${familiaFiltro}` : 'Todos los defectos'}
@@ -1432,39 +1713,14 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         </div>
       </div>
 
-      <div className="dashboard-grid dashboard-grid-pareto" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+      <div className="dashboard-grid dashboard-grid-pareto" style={{ order: 6, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
         <div id="tour-pareto" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Pareto de defectos"
             sub={paretoConfig.sub}
             action={(
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ display: 'inline-flex', background: BX.soft, border: `1px solid ${BX.border}`, borderRadius: 6, padding: 2, gap: 2 }}>
-                  {[
-                    ['frecuencia', 'Frecuencia (cajas)'],
-                    ['piezas', 'Impacto (piezas)'],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setParetoMode(value)}
-                      style={{
-                        padding: '4px 8px',
-                        border: 'none',
-                        borderRadius: 3,
-                        background: paretoMode === value ? accent : 'transparent',
-                        color: paretoMode === value ? '#fff' : BX.muted,
-                        cursor: 'pointer',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <HelpIcon text="Ordena los defectos de mayor a menor para identificar los problemas más relevantes. Puedes alternar entre frecuencia por caja y piezas comprometidas." open={openHelp === 'pareto'} onToggle={() => setOpenHelp(openHelp === 'pareto' ? '' : 'pareto')} />
+                <HelpIcon text="Ordena todos los defectos de mayor a menor segun cuantas cajas tuvieron cada defecto." open={openHelp === 'pareto'} onToggle={() => setOpenHelp(openHelp === 'pareto' ? '' : 'pareto')} />
               </div>
             )}
           />
@@ -1475,36 +1731,47 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
           ) : paretoError ? (
             <EmptyState text={paretoError} />
           ) : defectosPareto.length ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={defectosPareto} layout="vertical" margin={{ top: 0, right: 56, left: 170, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={BX.bg} horizontal={false} />
-                <XAxis xAxisId="valor" type="number" tick={{ fill: BX.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <XAxis xAxisId="porcentaje" type="number" domain={[0, 100]} hide />
-                <YAxis type="category" dataKey="defecto" width={165} tick={{ fill: BX.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    const row = payload[0]?.payload || {};
-                    return (
-                      <div className="custom-tooltip">
-                        <div className="label">{label}</div>
-                        <div className="item"><span>Frecuencia cajas: <strong>{fmt(row.frecuencia)}</strong></span></div>
-                        <div className="item"><span>Piezas afectadas: <strong>{fmt(row.piezas)}</strong></span></div>
-                        <div className="item"><span>% acumulado: <strong>{pct(row.acumulado)}</strong></span></div>
-                      </div>
-                    );
-                  }}
-                />
-                <Bar xAxisId="valor" dataKey="cantidad" name={paretoConfig.barName} radius={[0, 3, 3, 0]} barSize={14}>
-                  {defectosPareto.map((item, index) => (
-                    <Cell key={item.defecto} fill={index < 3 ? BX.orange : BX.teal700} />
-                  ))}
-                  <LabelList dataKey="cantidad" position="right" formatter={(value) => fmt(value)} style={{ fill: BX.ink, fontSize: 10, fontWeight: 700 }} />
-                </Bar>
-                <Line xAxisId="porcentaje" dataKey="acumulado" name="% acumulado" stroke={BX.orange} strokeWidth={2} dot={{ fill: BX.orange, r: 3 }} type="monotone" />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <div style={{ maxHeight: 520, overflowY: 'auto', overflowX: 'hidden' }}>
+              <ResponsiveContainer width="100%" height={paretoChartHeight}>
+                <ComposedChart data={defectosParetoVisibles} layout="vertical" margin={{ top: 0, right: 56, left: 170, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={BX.bg} horizontal={false} />
+                  <XAxis xAxisId="valor" type="number" tick={{ fill: BX.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <XAxis xAxisId="porcentaje" type="number" domain={[0, 100]} hide />
+                  <YAxis type="category" dataKey="defecto" width={165} tick={{ fill: BX.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const row = payload[0]?.payload || {};
+                      return (
+                        <div className="custom-tooltip">
+                          <div className="label">{label}</div>
+                          <div className="item"><span>Frecuencia cajas: <strong>{fmt(row.frecuencia)}</strong></span></div>
+                          <div className="item"><span>% acumulado: <strong>{pct(row.acumulado)}</strong></span></div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar xAxisId="valor" dataKey="cantidad" name={paretoConfig.barName} radius={[0, 3, 3, 0]} barSize={14}>
+                    {defectosParetoVisibles.map((item, index) => (
+                      <Cell key={item.defecto} fill={index < 3 ? BX.orange : BX.teal700} />
+                    ))}
+                    <LabelList dataKey="cantidad" position="right" formatter={(value) => fmt(value)} style={{ fill: BX.ink, fontSize: 10, fontWeight: 700 }} />
+                  </Bar>
+                  <Line xAxisId="porcentaje" dataKey="acumulado" name="% acumulado" stroke="#D13438" strokeWidth={2} dot={{ fill: '#D13438', r: 3 }} type="monotone" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           ) : <EmptyState />}
+          {defectosPareto.length > 10 && !paretoLoading && !paretoError && (
+            <button
+              type="button"
+              onClick={() => setShowAllPareto((current) => !current)}
+              style={{ marginTop: 10, border: 'none', background: 'transparent', color: BX.teal700, cursor: 'pointer', fontSize: 11, fontWeight: 800, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              {showAllPareto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              {showAllPareto ? 'Ver solo top 10' : `Ampliar todos los defectos (${fmt(defectosPareto.length)})`}
+            </button>
+          )}
         </div>
 
         <div className="card" style={{ display: 'none' }}>
@@ -1573,7 +1840,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         </div>
       </div>
 
-      <div>
+      <div style={{ order: 7 }}>
         <div id="tour-printcard" className="card" style={{ padding: '12px 14px' }}>
           <CardTitle
             title="Buscar PrintCard o lote"
@@ -1679,7 +1946,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
       </div>
 
       {orderResult && (
-        <div className="card fade-in" style={{ padding: '14px 16px' }}>
+        <div className="card fade-in" style={{ order: 8, padding: '14px 16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -1807,7 +2074,7 @@ function DashboardInner({ accent = BX.teal700, initialDesde = defaultDesde, init
         </div>
       )}
 
-      <div className="dashboard-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0 8px', fontSize: 10, color: BX.teal500 }}>
+      <div className="dashboard-footer" style={{ order: 9, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0 8px', fontSize: 10, color: BX.teal500 }}>
         <span>Bioflex · Calidad Comercial</span>
         <span>Dashboard analítico · {desde} a {hasta} · Cliente: {cliente === 'todos' ? 'Todos' : cliente} · Área: {tipoProceso === 'todos' ? 'Todas' : tipoProceso} · Base API 172.16.10.31</span>
       </div>

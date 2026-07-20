@@ -7,7 +7,6 @@ import Dashboard     from './pages/Dashboard';
 import EficienciaOperador from './pages/EficienciaOperador';
 import { DashboardFilterProvider } from './context/DashboardFilterContext';
 import Verificaciones from './pages/Verificaciones';
-import AuditoriaDefectos from './pages/AuditoriaDefectos';
 import AnalisisProducto from './pages/AnalisisProducto';
 import Reportes      from './pages/Reportes';
 import Configuracion from './pages/Configuracion';
@@ -41,7 +40,6 @@ function AppShell() {
     dashboard:      <DashboardFilterProvider key={`dashboard-${period}`}><Dashboard accent={accent} initialDesde={range.desde} initialHasta={range.hasta} /></DashboardFilterProvider>,
     eficienciaOperador: <EficienciaOperador key={`eficiencia-operador-${period}`} accent={accent} initialDesde={range.desde} initialHasta={range.hasta} />,
     verificaciones: <Verificaciones accent={accent} />,
-    auditoria:      <AuditoriaDefectos accent={accent} />,
     analisisProducto: <AnalisisProducto accent={accent} />,
     reportes:       <Reportes       accent={accent} />,
     configuracion:  <Configuracion  accent={accent} onAccentChange={setAccent} sidebarColor={sidebarColor} onSidebarChange={setSidebarColor} />,

@@ -14,6 +14,13 @@ const EMPTY_ARRAY = [];
 const EMPTY_OBJECT = {};
 const CLIENTES = ['Quality', 'Destiny', 'Pollos Guerrero', 'Mr Lucky', 'Mayalatex'];
 const AREAS = ['POUCH', 'BOLSEO'];
+const TIPOS_BOLSA = [
+  { value: 'SELLO LATERAL', label: 'SELLO LATERAL', area: 'BOLSEO' },
+  { value: 'SELLO LATERAL CON ZIPPER', label: 'SELLO LATERAL CON ZIPPER', area: 'BOLSEO' },
+  { value: 'WICKET', label: 'WICKET', area: 'BOLSEO' },
+  { value: 'WICKET CON ZIPPER', label: 'WICKET CON ZIPPER', area: 'BOLSEO' },
+  { value: 'POUCH', label: 'POUCH', area: 'POUCH' },
+];
 
 const fmt = (value, digits = 0) => Number(value || 0).toLocaleString('es-MX', {
   maximumFractionDigits: digits,
@@ -23,13 +30,23 @@ const fmt = (value, digits = 0) => Number(value || 0).toLocaleString('es-MX', {
 const pct = (value) => `${fmt(value, 1)}%`;
 const dateLabel = (value) => value ? new Date(value).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
 const labelIfValue = (value) => Number(value || 0) > 0 ? fmt(value) : '';
+const tiposBolsaPorArea = (area) => (
+  area === 'POUCH' || area === 'BOLSEO'
+    ? TIPOS_BOLSA.filter((item) => item.area === area)
+    : TIPOS_BOLSA
+);
+const porcentajeCajasSinDefecto = (operador) => {
+  const valorApi = operador.porcentajeCajasSinDefecto ?? operador.tasaEficienciaEfectiva;
+  if (valorApi !== undefined && valorApi !== null && valorApi !== '') {
+    return Number(valorApi || 0);
+  }
 
-function eficienciaColor(value) {
-  const tasa = Number(value || 0);
-  if (tasa >= 90) return { bg: '#DFF6DD', color: '#107C10' };
-  if (tasa >= 80) return { bg: '#FFF4CE', color: '#7A4F01' };
-  return { bg: '#FDE7E9', color: '#A80000' };
-}
+  const total = Number(operador.totalCajasRevisadas || 0);
+  if (!total) return 0;
+
+  const conDefecto = Number(operador.totalCajasConDefecto || 0);
+  return ((Math.max(total - conDefecto, 0)) / total) * 100;
+};
 
 function CardTitle({ title, sub }) {
   return (
@@ -55,6 +72,7 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
   const [hasta, setHasta] = useState(initialHasta);
   const [cliente, setCliente] = useState('todos');
   const [tipoProceso, setTipoProceso] = useState('todos');
+  const [tipoBolsa, setTipoBolsa] = useState('todos');
   const [data, setData] = useState(null);
   const [operadores, setOperadores] = useState(null);
   const [expandedOperador, setExpandedOperador] = useState(null);
@@ -63,13 +81,21 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
   const [errors, setErrors] = useState(EMPTY_ARRAY);
   const { filtros, toggleFiltro, limpiarFiltros, hayFiltros } = useDashboardFilter();
   const interactivo = useDashboardInteractivo(tarimasDetalle, filtros);
+  const tiposBolsaDisponibles = useMemo(() => tiposBolsaPorArea(tipoProceso), [tipoProceso]);
+  const filtrosGlobales = useMemo(() => ({
+    desde,
+    hasta,
+    cliente,
+    tipoProceso,
+    tipoBolsa,
+  }), [desde, hasta, cliente, tipoProceso, tipoBolsa]);
 
   const load = async () => {
     setLoading(true);
     try {
       const [payload, operadoresPayload] = await Promise.all([
-        getDashboardAnalytics({ desde, hasta, cliente, tipoProceso }),
-        getIncidenciasPorOperador({ desde, hasta }),
+        getDashboardAnalytics(filtrosGlobales),
+        getIncidenciasPorOperador(filtrosGlobales),
       ]);
       setData(payload);
       setOperadores(operadoresPayload);
@@ -85,8 +111,8 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
   useEffect(() => {
     let ignore = false;
     Promise.all([
-      getDashboardAnalytics({ desde, hasta, cliente, tipoProceso }),
-      getIncidenciasPorOperador({ desde, hasta }),
+      getDashboardAnalytics(filtrosGlobales),
+      getIncidenciasPorOperador(filtrosGlobales),
     ])
       .then(([payload, operadoresPayload]) => {
         if (!ignore) {
@@ -107,11 +133,11 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
         }
       });
     return () => { ignore = true; };
-  }, [desde, hasta, cliente, tipoProceso]);
+  }, [filtrosGlobales]);
 
   useEffect(() => {
     let ignore = false;
-    getDetalleInteractivo({ desde, hasta, cliente, tipoProceso })
+    getDetalleInteractivo(filtrosGlobales)
       .then((payload) => {
         if (!ignore) {
           setTarimasDetalle(payload?.tarimas || EMPTY_ARRAY);
@@ -123,7 +149,7 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
         }
       });
     return () => { ignore = true; };
-  }, [desde, hasta, cliente, tipoProceso]);
+  }, [filtrosGlobales]);
 
   const eficiencia = data?.eficienciaOperadora?.operadoras || EMPTY_ARRAY;
   const turno = data?.tarimasPorTurno || EMPTY_OBJECT;
@@ -142,8 +168,9 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
         totalCajasRevisadas: Number(operador.totalCajasRevisadas || 0),
         totalCajasConDefecto: Number(operador.totalCajasConDefecto || 0),
         totalPiezasMermadas: Number(operador.totalPiezasMermadas || 0),
-        tasaEficienciaEfectiva: Number(operador.tasaEficienciaEfectiva || 0),
+        porcentajeCajasSinDefecto: porcentajeCajasSinDefecto(operador),
         tarimasAprobadas: Number(operador.tarimasAprobadas || 0),
+        tarimasConHallazgos: Number(operador.tarimasConHallazgos || 0),
         tarimasRechazadas: Number(operador.tarimasRechazadas || 0),
         tarimasDesviadas: Number(operador.tarimasDesviadas || 0),
         erroresMasDetectados: (Array.isArray(operador.erroresMasDetectados) ? operador.erroresMasDetectados : EMPTY_ARRAY)
@@ -155,8 +182,8 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
           .sort((a, b) => b.piezasAfectadas - a.piezasAfectadas),
       }))
       .sort((a, b) => (
-        (b.totalPiezasMermadas + b.tarimasAprobadas + b.tarimasRechazadas + b.tarimasDesviadas)
-        - (a.totalPiezasMermadas + a.tarimasAprobadas + a.tarimasRechazadas + a.tarimasDesviadas)
+        (b.totalPiezasMermadas + b.tarimasAprobadas + b.tarimasConHallazgos + b.tarimasRechazadas + b.tarimasDesviadas)
+        - (a.totalPiezasMermadas + a.tarimasAprobadas + a.tarimasConHallazgos + a.tarimasRechazadas + a.tarimasDesviadas)
       ))
   ), [operadores]);
 
@@ -178,6 +205,15 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
 
   const barColor = (valor, seleccionado) =>
     !seleccionado || seleccionado === valor ? undefined : '#B4B2A9';
+  const toggleTipoProceso = (value) => {
+    setLoading(true);
+    const nextTipoProceso = tipoProceso === value ? 'todos' : value;
+    const nextTiposBolsa = tiposBolsaPorArea(nextTipoProceso);
+    if (tipoBolsa !== 'todos' && !nextTiposBolsa.some((item) => item.value === tipoBolsa)) {
+      setTipoBolsa('todos');
+    }
+    setTipoProceso(nextTipoProceso);
+  };
 
   return (
     <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -204,10 +240,23 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#605E5C' }}>
           Area
-          <select className="pbi-select" value={tipoProceso} onChange={(event) => { setLoading(true); setTipoProceso(event.target.value); }} style={{ minWidth: 120 }}>
+          {AREAS.map((item) => (
+            <span key={item} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: tipoProceso === item ? 800 : 600, color: tipoProceso === item ? accent : '#605E5C' }}>
+              <input
+                type="checkbox"
+                checked={tipoProceso === item}
+                onChange={() => toggleTipoProceso(item)}
+              />
+              {item}
+            </span>
+          ))}
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#605E5C' }}>
+          Tipo de bolsa
+          <select className="pbi-select" value={tipoBolsa} onChange={(event) => { setLoading(true); setTipoBolsa(event.target.value); }} style={{ minWidth: 190 }}>
             <option value="todos">Todas</option>
-            {AREAS.map((item) => (
-              <option key={item} value={item}>{item}</option>
+            {tiposBolsaDisponibles.map((item) => (
+              <option key={item.value} value={item.value}>{item.label}</option>
             ))}
           </select>
         </label>
@@ -242,7 +291,7 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.45fr 1fr', gap: 10 }}>
         <div className="card" style={{ padding: '12px 14px' }}>
-          <CardTitle title="Eficiencia operador" sub="Tarimas creadas" />
+          <CardTitle title="Actividad por operador" sub="Tarimas creadas" />
           {datosEficiencia.length ? (
             <ResponsiveContainer width="100%" height={Math.max(260, datosEficiencia.length * 36)}>
               <BarChart data={datosEficiencia} layout="vertical" margin={{ top: 4, right: 42, left: 136, bottom: 0 }}>
@@ -345,7 +394,7 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
 
       <div className="card" style={{ padding: '12px 14px' }}>
         <CardTitle
-          title="Eficiencia operador"
+          title="Calidad por operador"
           sub="Cajas auditadas, piezas mermadas y errores mas detectados por persona"
         />
 
@@ -356,12 +405,12 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
             <div className="kpi-sub">Operadoras y operarios con actividad</div>
           </div>
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderLeft: `4px solid ${accent}`, borderRadius: 4, padding: '10px 12px', fontSize: 12, color: '#1E3A8A', lineHeight: 1.5 }}>
-            Evalua el desempeno por persona en el rango seleccionado, incluyendo cajas escaneadas y decisiones de tarimas aprobadas, rechazadas o desviadas. Expande un operador para ver que familias y fallas especificas concentran mas piezas afectadas.
+            Revisa por persona el producto auditado en el rango seleccionado, incluyendo cajas escaneadas y decisiones de tarimas aprobadas, con hallazgos, rechazadas o desviadas. Expande un operador para ver que familias y fallas especificas concentran mas piezas afectadas.
           </div>
         </div>
 
         {loading ? (
-          <EmptyState text="Cargando eficiencia de operadores..." />
+          <EmptyState text="Cargando calidad por operador..." />
         ) : reporteOperadores.length ? (
           <div style={{ overflow: 'auto', maxHeight: 520 }}>
             <table className="tbl">
@@ -371,18 +420,16 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
                   <th>Operador</th>
                   <th>Cajas totales escaneadas</th>
                   <th>Cajas con defectos</th>
-                  <th>Piezas mermadas</th>
                   <th>Tarimas aprobadas</th>
+                  <th>Tarimas con hallazgos</th>
                   <th>Tarimas rechazadas</th>
                   <th>Tarimas desviadas</th>
-                  <th>Eficiencia efectiva</th>
                 </tr>
               </thead>
               <tbody>
                 {reporteOperadores.map((operador, index) => {
                   const rowKey = `${operador.usuarioOperador || 'operador'}-${index}`;
                   const expanded = expandedOperador === rowKey;
-                  const badge = eficienciaColor(operador.tasaEficienciaEfectiva);
                   const maxPiezas = Math.max(...operador.erroresMasDetectados.map((item) => item.piezasAfectadas), 1);
 
                   return (
@@ -415,19 +462,14 @@ function EficienciaOperadorInner({ accent, initialDesde = defaultDesde, initialH
                         <td style={{ fontWeight: 700 }}>{operador.usuarioOperador || '-'}</td>
                         <td>{fmt(operador.totalCajasRevisadas)}</td>
                         <td>{fmt(operador.totalCajasConDefecto)}</td>
-                        <td><strong style={{ color: '#A80000' }}>{fmt(operador.totalPiezasMermadas)}</strong></td>
                         <td><strong style={{ color: '#107C10' }}>{fmt(operador.tarimasAprobadas)}</strong></td>
+                        <td><strong style={{ color: '#7A4F01' }}>{fmt(operador.tarimasConHallazgos)}</strong></td>
                         <td><strong style={{ color: '#A80000' }}>{fmt(operador.tarimasRechazadas)}</strong></td>
                         <td><strong style={{ color: '#7A4F01' }}>{fmt(operador.tarimasDesviadas)}</strong></td>
-                        <td>
-                          <span className="badge" style={{ background: badge.bg, color: badge.color }}>
-                            {pct(operador.tasaEficienciaEfectiva)}
-                          </span>
-                        </td>
                       </tr>
                       {expanded && (
                         <tr>
-                          <td colSpan={9} style={{ background: '#FAFAFA', padding: 10 }}>
+                          <td colSpan={8} style={{ background: '#FAFAFA', padding: 10 }}>
                             {operador.erroresMasDetectados.length ? (
                               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(260px, .8fr)', gap: 10 }}>
                                 <div style={{ border: '1px solid #EDEBE9', borderRadius: 4, overflow: 'hidden' }}>

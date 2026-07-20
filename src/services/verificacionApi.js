@@ -15,7 +15,8 @@ function toQuery(params = {}) {
 }
 
 async function request(path, params, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}${toQuery(params)}`, options);
+  const baseUrl = path.startsWith('/api/') ? FILE_BASE_URL : API_BASE_URL;
+  const response = await fetch(`${baseUrl}${path}${toQuery(params)}`, options);
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json')
     ? await response.json()
@@ -29,8 +30,8 @@ async function request(path, params, options = {}) {
   return payload;
 }
 
-export function getDashboardAnalytics({ desde, hasta, cliente, tipoProceso } = {}) {
-  const range = { desde, hasta, cliente, tipoProceso };
+export function getDashboardAnalytics({ desde, hasta, cliente, tipoProceso, tipoBolsa } = {}) {
+  const range = { desde, hasta, cliente, tipoProceso, tipoBolsa };
   return Promise.allSettled([
     request('/dashboard/rechazos-con-defectos', range),
     request('/dashboard/eficiencia-operadora', range),
@@ -61,33 +62,34 @@ export function getDashboardAnalytics({ desde, hasta, cliente, tipoProceso } = {
   });
 }
 
-export function getDefectosFamilias({ desde, hasta, cliente, tipoProceso, estatusTarima } = {}) {
-  return request('/dashboard/defectos-familias', { desde, hasta, cliente, tipoProceso, estatusTarima });
+export function getDefectosFamilias({ desde, hasta, cliente, tipoProceso, estatusTarima, tipoBolsa } = {}) {
+  return request('/dashboard/defectos-familias', { desde, hasta, cliente, tipoProceso, estatusTarima, tipoBolsa });
 }
 
-export function getParetoDefectos({ desde, hasta, cliente, tipoProceso, familia, estatusTarima } = {}) {
-  return request('/dashboard/pareto-defectos', { desde, hasta, cliente, tipoProceso, familia, estatusTarima });
+export function getParetoDefectos({ desde, hasta, cliente, tipoProceso, familia, estatusTarima, tipoBolsa } = {}) {
+  return request('/dashboard/pareto-defectos', { desde, hasta, cliente, tipoProceso, familia, estatusTarima, tipoBolsa });
 }
 
 export function getTarimasPorDiaMes({ desde, hasta, cliente, tipoProceso } = {}) {
   return request('/dashboard/tarimas-por-dia-mes', { desde, hasta, cliente, tipoProceso });
 }
 
-export function getHistoricoMensual({ desde, hasta, cliente, tipoProceso } = {}) {
-  return request('/dashboard/historico-mensual', { desde, hasta, cliente, tipoProceso });
+export function getHistoricoMensual({ desde, hasta, cliente, tipoProceso, tipoBolsa } = {}) {
+  return request('/dashboard/historico-mensual', { desde, hasta, cliente, tipoProceso, tipoBolsa });
 }
 
-export function getKpisGlobales({ desde, hasta, cliente, tipoProceso } = {}) {
-  return request('/dashboard/kpis-globales', { desde, hasta, cliente, tipoProceso });
+export function getKpisGlobales({ desde, hasta, cliente, tipoProceso, tipoBolsa } = {}) {
+  return request('/dashboard/kpis-globales', { desde, hasta, cliente, tipoProceso, tipoBolsa });
 }
 
-export function getTarimasAnalisis(estatus, { desde, hasta, cliente, tipoProceso, familia } = {}) {
+export function getTarimasAnalisis(estatus, { desde, hasta, cliente, tipoProceso, familia, tipoBolsa } = {}) {
   return request(`/dashboard/tarimas-analisis/${encodeURIComponent(estatus)}`, {
     desde,
     hasta,
     cliente,
     tipoProceso,
     familia,
+    tipoBolsa,
   });
 }
 
@@ -107,8 +109,8 @@ export function getReporteEvidencias(id) {
   return request(`/reporte-evidencias/${encodeURIComponent(id)}`);
 }
 
-export function getDetalleInteractivo({ desde, hasta, cliente, tipoProceso } = {}) {
-  return request('/dashboard/detalle-interactivo', { desde, hasta, cliente, tipoProceso });
+export function getDetalleInteractivo({ desde, hasta, cliente, tipoProceso, tipoBolsa } = {}) {
+  return request('/dashboard/detalle-interactivo', { desde, hasta, cliente, tipoProceso, tipoBolsa });
 }
 
 export function postAuditoriaDefectos({ desde, hasta, familiaDefecto, cliente, familiaProducto } = {}) {
@@ -125,12 +127,19 @@ export function postAuditoriaDefectos({ desde, hasta, familiaDefecto, cliente, f
   });
 }
 
-export function getAnalisisProductoCritico({ desde, hasta, cliente, tipoProceso } = {}) {
-  return request('/dashboard/analisis-producto-critico', { desde, hasta, cliente, tipoProceso });
+export function getAnalisisProductoCritico({ desde, hasta, cliente, tipoProceso, tipoBolsa, tipoMetrica } = {}) {
+  return request('/dashboard/analisis-producto-critico', {
+    desde,
+    hasta,
+    cliente,
+    tipoProceso,
+    tipoBolsa,
+    tipoMetrica,
+  });
 }
 
-export function getIncidenciasPorOperador({ desde, hasta } = {}) {
-  return request('/dashboard-analisis/incidencias-operador', { desde, hasta });
+export function getIncidenciasPorOperador({ desde, hasta, cliente, tipoProceso, tipoBolsa } = {}) {
+  return request('/dashboard-analisis/incidencias-operador', { desde, hasta, cliente, tipoProceso, tipoBolsa });
 }
 
 export function getFileUrl(path) {

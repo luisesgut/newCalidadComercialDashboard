@@ -1,13 +1,12 @@
 import {
   LayoutDashboard, CheckSquare,
-  BarChart2, Settings, ChevronLeft, ChevronRight, SearchCheck, PackageSearch, Users
+  BarChart2, Settings, ChevronLeft, ChevronRight, PackageSearch, Users
 } from 'lucide-react';
 
 const ITEMS = [
   { id: "dashboard",       label: "Dashboard",      Icon: LayoutDashboard },
   { id: "eficienciaOperador", label: "Eficiencia operador", Icon: Users },
   { id: "verificaciones",  label: "Verificaciones", Icon: CheckSquare },
-  { id: "auditoria",       label: "Auditoría",      Icon: SearchCheck },
   { id: "analisisProducto", label: "Producto critico", Icon: PackageSearch },
   { id: "reportes",        label: "Reportes",       Icon: BarChart2 },
   { id: "configuracion",   label: "Configuración",  Icon: Settings },
